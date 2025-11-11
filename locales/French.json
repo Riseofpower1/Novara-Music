@@ -32,7 +32,7 @@
 			"options": {
 				"command": "La commande sur laquelle vous souhaitez obtenir des informations"
 			},
-			"content": "Salut ! Je suis {bot}, un bot de musique créé avec [Novara Music](https://github.com/appujet/novara-music) et Discord. Vous pouvez utiliser `{prefix}help <command>` pour obtenir plus d'informations sur une commande.",
+			"content": "Salut ! Je suis {bot}, un bot de musique créé avec [Novara Music](https://github.com/Riseofpower1/Novara-Music) et Discord. Vous pouvez utiliser `{prefix}help <command>` pour obtenir plus d'informations sur une commande.",
 			"title": "Menu d'aide",
 			"not_found": "La commande `{cmdName}` n'existe pas.",
 			"help_cmd": "**Description:** {description}\n**Utilisation:** {usage}\n**Exemples:** {examples}\n**Alias:** {aliases}\n**Catégorie:** {category}\n**Refroidissement:** {cooldown} secondes\n**Permissions de l'utilisateur:** {premUser}\n**Permissions du bot:** {premBot}\n**Développeur uniquement:** {dev}\n**Commande Slash:** {slash}\n**Args:** {args}\n**Lecteur:** {player}\n**DJ:** {dj}\n**Permissions DJ:** {djPerm}\n**Voix:** {voice}",

@@ -64,12 +64,12 @@ export default class About extends Command {
 			.addFields(
 				{
 					name: ctx.locale("cmd.about.fields.creator"),
-					value: "[appujet](https://github.com/appujet)",
+					value: "[Riseofpower1](https://github.com/Riseofpower1)",
 					inline: true,
 				},
 				{
 					name: ctx.locale("cmd.about.fields.repository"),
-					value: "[Here](https://github.com/appujet/lavamusic)",
+					value: "[Here](https://github.com/Riseofpower1/Novara-Music)",
 					inline: true,
 				},
 				{

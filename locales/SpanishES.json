@@ -32,7 +32,7 @@
 			"options": {
 				"command": "El comando sobre el que quieres obtener información"
 			},
-			"content": "¡Hola! Soy {bot}, un bot de música hecho con [Lavamusic](https://github.com/appujet/lavamusic) y Discord. Puedes usar `{prefix}help <command>` para obtener más información sobre un comando.",
+			"content": "¡Hola! Soy {bot}, un bot de música hecho con [Novara Music](https://github.com/Riseofpower1/Novara-Music) y Discord. Puedes usar `{prefix}help <command>` para obtener más información sobre un comando.",
 			"title": "Menú de Ayuda",
 			"not_found": "Este comando `{cmdName}` no existe.",
 			"help_cmd": "**Descripción:** {description}\n**Uso:** {usage}\n**Ejemplos:** {examples}\n**Alias:** {aliases}\n**Categoría:** {category}\n**Tiempo de espera:** {cooldown} segundos\n**Permisos:** {premUser}\n**Permisos del Bot:** {premBot}\n**Solo para desarrolladores:** {dev}\n**Comando Slash:** {slash}\n**Args:** {args}\n**Reproductor:** {player}\n**DJ:** {dj}\n**Permisos de DJ:** {djPerm}\n**Voz:** {voice}",

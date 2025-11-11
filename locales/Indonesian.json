@@ -32,7 +32,7 @@
 			"options": {
 				"command": "command yang ingin Anda dapatkan informasinya"
 			},
-			"content": "Halo! Aku adalah {bot}, bot musik yang dibuat dengan [Lavamusic](https://github.com/appujet/lavamusic) dan Discord. Anda dapat menggunakan `{prefix}help <command>` untuk mendapatkan informasi lebih lanjut tentang command.",
+			"content": "Halo! Aku adalah {bot}, bot musik yang dibuat dengan [Novara Music](https://github.com/Riseofpower1/Novara-Music) dan Discord. Anda dapat menggunakan `{prefix}help <command>` untuk mendapatkan informasi lebih lanjut tentang command.",
 			"title": "Menu Bantuan",
 			"not_found": "command `{cmdName}` ini tidak ada.",
 			"help_cmd": "**Deskripsi:** {description}\n**Penggunaan:** {usage}\n**Contoh:** {examples}\n**Alias:** {aliases}\n**Kategori:** {category}\n**Cooldown:** {cooldown} detik\n**Izin:** {premUser}\n**Izin Bot:** {premBot}\n**Hanya Pengembang:** {dev}\n**command Slash:** {slash}\n**Argumen:** {args}\n**Player:** {player}\n**DJ:** {dj}\n**Izin DJ:** {djPerm}\n**Suara:** {voice}",

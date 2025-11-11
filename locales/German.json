@@ -32,7 +32,7 @@
 			"options": {
 				"command": "Der Befehl, zu dem du Informationen erhalten möchtest"
 			},
-			"content": "Hallo! Ich bin {bot}, ein Musikbot, der mit [Novara Music](https://github.com/appujet/novara-music) und Discord erstellt wurde. Du kannst `{prefix}help <command>` verwenden, um mehr Informationen zu einem Befehl zu erhalten.",
+			"content": "Hallo! Ich bin {bot}, ein Musikbot, der mit [Novara Music](https://github.com/Riseofpower1/Novara-Music) und Discord erstellt wurde. Du kannst `{prefix}help <command>` verwenden, um mehr Informationen zu einem Befehl zu erhalten.",
 			"title": "Hilfe-Menü",
 			"not_found": "Dieser Befehl `{cmdName}` existiert nicht.",
 			"help_cmd": "**Beschreibung:** {description}\n**Verwendung:** {usage}\n**Beispiele:** {examples}\n**Alias:** {aliases}\n**Kategorie:** {category}\n**Abklingzeit:** {cooldown} Sekunden\n**Berechtigungen:** {premUser}\n**Bot-Berechtigungen:** {premBot}\n**Nur für Entwickler:** {dev}\n**Slash-Befehl:** {slash}\n**Args:** {args}\n**Spieler:** {player}\n**DJ:** {dj}\n**DJ-Berechtigungen:** {djPerm}\n**Stimme:** {voice}",
