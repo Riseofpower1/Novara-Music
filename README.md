@@ -330,7 +330,21 @@ Contributions are welcome! Please:
 
 ## 📄 License
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License with a Commercial Use Clause - see [LICENSE](LICENSE) file for details.
+
+**Key Terms:**
+- Free to use, modify, and distribute for personal and non-commercial use
+- If you commercialize this software, you must provide 30% commission to Riseofpower1
+- See LICENSE file for complete terms
+
+## 🔐 Privacy Policy
+
+We take your privacy seriously. See our [Privacy Policy](PRIVACY_POLICY.md) for details on:
+- What data we collect
+- How we use your information
+- Your rights and choices
+- Third-party integrations
+- GDPR and CCPA compliance
 
 ## 🙏 Credits
 
@@ -342,7 +356,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 
 ## 📞 Support
 
-- **Discord Server**: [Join our Discord](https://discord.gg/example)
+- **Discord Server**: [Join our Discord](https://discord.gg/2tEDK2qvbu)
 - **Issues**: [GitHub Issues](https://github.com/Riseofpower1/Novara-Music/issues)
 - **Documentation**: Check the [Wiki](https://github.com/Riseofpower1/Novara-Music/wiki)
 
