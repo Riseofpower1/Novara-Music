@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { shardStart } from "./shard";
 import Logger from "./structures/Logger";
 import { ThemeSelector } from "./utils/ThemeSelector";
@@ -5,6 +6,8 @@ import { ThemeSelector } from "./utils/ThemeSelector";
 const logger = new Logger();
 
 const theme = new ThemeSelector();
+
+console.log('LOG_CHANNEL_ID at startup:', process.env.LOG_CHANNEL_ID);
 
 /**
  * Sets the console window title.

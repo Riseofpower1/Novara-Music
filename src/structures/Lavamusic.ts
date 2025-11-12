@@ -76,7 +76,7 @@ export default class Lavamusic extends Client {
 		});
 
 		// Handle disconnections
-		this.on(Events.Disconnect, async () => {
+		this.on(Events.ShardDisconnect, async () => {
 			this.logger.warn("[BOT STATUS] Disconnect event fired");
 			BotStatusReporter.setOffline();
 			
@@ -84,13 +84,14 @@ export default class Lavamusic extends Client {
 			
 			this.logger.warn("[BOT STATUS] Sending offline status update immediately");
 			// Fire offline update immediately (don't await - fire and forget)
-			BotStatusReporter.updateStatus({
-				botId,
-				name: "Novara Music",
-				servers: 0,
-				users: 0,
-				online: false,
-			}).catch(err => this.logger.error("[BOT STATUS] Failed to send offline status:", err));
+			   BotStatusReporter.updateStatus({
+				   botId,
+				   name: "Novara Music",
+				   servers: 0,
+				   users: 0,
+				   online: false,
+				   uptime: this.uptime?.toString() || "0"
+			   }, this).catch(err => this.logger.error("[BOT STATUS] Failed to send offline status:", err));
 		});
 
 		// Handle errors
@@ -104,13 +105,14 @@ export default class Lavamusic extends Client {
 			this.logger.warn("[BOT STATUS] Session invalidated - marking as offline");
 			BotStatusReporter.setOffline();
 			// Send explicit offline update
-			BotStatusReporter.updateStatus({
-				botId: this.user?.id || env.CLIENT_ID || "",
-				name: "Novara Music",
-				servers: 0,
-				users: 0,
-				online: false,
-			}).catch(err => this.logger.error("[BOT STATUS] Failed to send offline status on invalidation:", err));
+			   BotStatusReporter.updateStatus({
+				   botId: this.user?.id || env.CLIENT_ID || "",
+				   name: "Novara Music",
+				   servers: 0,
+				   users: 0,
+				   online: false,
+				   uptime: this.uptime?.toString() || "0"
+			   }, this).catch(err => this.logger.error("[BOT STATUS] Failed to send offline status on invalidation:", err));
 		});
 
 		// Handle reconnections (after initial ready)
@@ -120,12 +122,13 @@ export default class Lavamusic extends Client {
 			BotStatusReporter.setOnline();
 			// Send immediate update to website
 			const userCount = await this.getTotalUserCount();
-			BotStatusReporter.updateStatus({
-				botId: this.user?.id || env.CLIENT_ID || "",
-				name: "Novara Music",
-				servers: this.guilds.cache.size,
-				users: userCount,
-			});
+			   BotStatusReporter.updateStatus({
+				   botId: this.user?.id || env.CLIENT_ID || "",
+				   name: "Novara Music",
+				   servers: this.guilds.cache.size,
+				   users: userCount,
+				   uptime: this.uptime?.toString() || "0"
+			   }, this);
 		});
 
 		this.on(Events.InteractionCreate, async (interaction: Interaction) => {

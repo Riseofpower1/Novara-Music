@@ -16,6 +16,85 @@ export class BotStatusReporter {
   private static updateInterval: NodeJS.Timeout | null = null;
   private static isOnline: boolean = false;
 
+  // Store last status message ID for editing
+  private static lastStatusMessageId: string | null = null;
+  private static statusChannelId = "1438198696507605193";
+
+  /**
+   * Send or edit a status embed in the status channel
+   */
+  static async updateStatusEmbed(client: any, statusData: StatusData) {
+    try {
+      const channel = await client.channels.fetch(this.statusChannelId);
+      if (!channel || !channel.isTextBased()) return;
+
+      const online = statusData.online !== undefined ? statusData.online : this.isOnline;
+      const statusDot = online ? "🟢" : "🔴";
+      const statusText = online ? "Online" : "Offline";
+      const color = online ? 0x43b581 : 0xf04747;
+      // Format uptime as e.g. 0h 0m 2s
+      let uptime = statusData.uptime || "";
+      if (!uptime || uptime === "99.9%") {
+        uptime = "N/A";
+      }
+      // If uptime is in ms, format it
+      if (/^\d+$/.test(uptime)) {
+        const ms = parseInt(uptime, 10);
+        const s = Math.floor((ms / 1000) % 60);
+        const m = Math.floor((ms / (1000 * 60)) % 60);
+        const h = Math.floor((ms / (1000 * 60 * 60)) % 24);
+        uptime = `${h}h ${m}m ${s}s`;
+      }
+
+      const embed = {
+        color,
+        title: `Novara Music Status`,
+        thumbnail: {
+          url: 'https://novaraproject.co.uk/logo.png'
+        },
+        fields: [
+          {
+            name: `🖥️ Servers`,
+            value: `${statusData.servers}`,
+            inline: true,
+          },
+          {
+            name: `👥 Users`,
+            value: `${statusData.users}`,
+            inline: true,
+          },
+          {
+            name: `🔵 Status`,
+            value: `${statusDot} ${statusText}`,
+            inline: true,
+          },
+          {
+            name: `⏰ Uptime`,
+            value: uptime,
+            inline: false,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+
+      // If we have a previous message, try to edit it
+      if (this.lastStatusMessageId) {
+        try {
+          const msg = await channel.messages.fetch(this.lastStatusMessageId);
+          await msg.edit({ embeds: [embed] });
+          return;
+        } catch (e) {
+          // If message not found, fall through to send new
+        }
+      }
+      // Otherwise, send a new message and store its ID
+      const sent = await channel.send({ embeds: [embed] });
+      this.lastStatusMessageId = sent.id;
+    } catch (err) {
+      console.error("[BOT STATUS] Failed to send/edit status embed:", err);
+    }
+  }
+
   /**
    * Test connection to the API endpoint
    */
@@ -49,11 +128,33 @@ export class BotStatusReporter {
   /**
    * Update bot status on the website
    */
-  static async updateStatus(statusData: StatusData): Promise<boolean> {
+  static async updateStatus(statusData: StatusData, client?: any): Promise<boolean> {
     try {
       if (!this.BOT_STATUS_TOKEN) {
         // Bot status reporting is disabled (no token configured)
         return false;
+      }
+
+      // Ensure uptime is always a valid string representing milliseconds
+      let rawUptime = statusData.uptime;
+      if (!rawUptime || isNaN(Number(rawUptime))) {
+        if (client && typeof client.uptime === 'number') {
+          rawUptime = client.uptime.toString();
+        } else {
+          rawUptime = "0";
+        }
+      }
+      // Format uptime for website just like the embed
+      let formattedUptime = rawUptime;
+      if (!formattedUptime || formattedUptime === "99.9%") {
+        formattedUptime = "N/A";
+      }
+      if (/^\d+$/.test(formattedUptime)) {
+        const ms = parseInt(formattedUptime, 10);
+        const s = Math.floor((ms / 1000) % 60);
+        const m = Math.floor((ms / (1000 * 60)) % 60);
+        const h = Math.floor((ms / (1000 * 60 * 60)) % 24);
+        formattedUptime = `${h}h ${m}m ${s}s`;
       }
 
       const payload = {
@@ -61,7 +162,7 @@ export class BotStatusReporter {
         online: statusData.online !== undefined ? statusData.online : this.isOnline,
         servers: statusData.servers || 0,
         users: statusData.users || 0,
-        uptime: statusData.uptime || "99.9%",
+        uptime: formattedUptime,
         token: this.BOT_STATUS_TOKEN,
       };
 
@@ -69,6 +170,7 @@ export class BotStatusReporter {
       console.log(`   Full Payload: ${JSON.stringify(payload, null, 2)}`);
       console.log(`   URL: ${this.BOT_STATUS_URL}`);
 
+      // Send to website API
       const response = await axios.post(this.BOT_STATUS_URL, payload, {
         timeout: 5000,
         headers: {
@@ -85,6 +187,10 @@ export class BotStatusReporter {
         console.log(
           `   Servers: ${statusData.servers || 0} | Users: ${statusData.users || 0}`
         );
+        // Also update Discord channel embed if client is provided
+        if (client) {
+          await this.updateStatusEmbed(client, statusData);
+        }
         return true;
       }
       console.log(`⚠️ Unexpected response status: ${response.status}`);
@@ -132,6 +238,7 @@ export class BotStatusReporter {
           servers: client.guilds.cache.size,
           users: userCount,
           online: true,
+          uptime: client.uptime?.toString() || "0"
         });
       }).catch(() => {
         // Fallback to cached users if fetch fails
@@ -141,6 +248,7 @@ export class BotStatusReporter {
           servers: client.guilds.cache.size,
           users: client.users.cache.size,
           online: true,
+          uptime: client.uptime?.toString() || "0"
         });
       });
     } else {
@@ -150,6 +258,7 @@ export class BotStatusReporter {
         servers: client.guilds.cache.size,
         users: client.users.cache.size,
         online: true,
+        uptime: client.uptime?.toString() || "0"
       });
     }
 
@@ -166,6 +275,7 @@ export class BotStatusReporter {
               servers: client.guilds.cache.size,
               users: userCount,
               online: true,
+              uptime: client.uptime?.toString() || "0"
             });
           }).catch(() => {
             // Fallback to cached users if fetch fails
@@ -175,6 +285,7 @@ export class BotStatusReporter {
               servers: client.guilds.cache.size,
               users: client.users.cache.size,
               online: true,
+              uptime: client.uptime?.toString() || "0"
             });
           });
         } else {
@@ -184,6 +295,7 @@ export class BotStatusReporter {
             servers: client.guilds.cache.size,
             users: client.users.cache.size,
             online: true,
+            uptime: client.uptime?.toString() || "0"
           });
         }
       }

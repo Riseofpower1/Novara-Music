@@ -74,7 +74,7 @@ export default class About extends Command {
 				},
 				{
 					name: ctx.locale("cmd.about.fields.support"),
-					value: "[Here](https://discord.gg/YQsGbTwPBx)",
+					value: "[Here](https://discord.gg/VZbMKKBvXM)",
 					inline: true,
 				},
 				{

@@ -47,7 +47,7 @@ export default class Invite extends Command {
 			new ButtonBuilder()
 				.setLabel(ctx.locale("buttons.support"))
 				.setStyle(ButtonStyle.Link)
-				.setURL("https://discord.gg/YQsGbTwPBx"),
+				.setURL("https://discord.gg/VZbMKKBvXM"),
 		);
 		return await ctx.sendMessage({
 			embeds: [
