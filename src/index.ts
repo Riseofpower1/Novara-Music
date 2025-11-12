@@ -19,7 +19,7 @@ try {
 	console.clear();
 	// Set a custom title for the console window
 	setConsoleTitle("Novara Music");
-	console.log(theme.purpleNeon("🎵 Novara Music Bot Starting..."));
+	console.log(theme.fire("🎵 Novara Music Bot Starting..."));
 	shardStart(logger);
 } catch (err) {
 	logger.error("[CLIENT] An error has occurred:", err);

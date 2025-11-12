@@ -23,6 +23,7 @@ import { T, i18n, initI18n, localization } from "./I18n";
 import LavalinkClient from "./LavalinkClient";
 import Logger from "./Logger";
 import type { Command } from "./index";
+import { BotStatusReporter } from "../utils/BotStatusReporter";
 
 export default class Lavamusic extends Client {
 	public commands: Collection<string, Command> = new Collection();
@@ -54,6 +55,78 @@ export default class Lavamusic extends Client {
 		this.logger.info("Successfully loaded events!");
 		loadPlugins(this);
 		await this.login(token);
+
+		// Set up bot status reporting
+		let isFirstReady = true;
+		this.once(Events.ClientReady, () => {
+			this.logger.info("[BOT STATUS] Bot is ready - marking as online");
+			BotStatusReporter.setOnline();
+			// Test API connection first
+			BotStatusReporter.testConnection().then(() => {
+				BotStatusReporter.setupAutoUpdate(
+					this,
+					this.user?.id || env.CLIENT_ID || "",
+					"Novara Music",
+					5 // Update every 5 minutes
+				);
+			}).catch(err => {
+				this.logger.error("[BOT STATUS] Failed to connect to API:", err);
+			});
+			isFirstReady = false;
+		});
+
+		// Handle disconnections
+		this.on(Events.Disconnect, async () => {
+			this.logger.warn("[BOT STATUS] Disconnect event fired");
+			BotStatusReporter.setOffline();
+			
+			const botId = this.user?.id || env.CLIENT_ID || "";
+			
+			this.logger.warn("[BOT STATUS] Sending offline status update immediately");
+			// Fire offline update immediately (don't await - fire and forget)
+			BotStatusReporter.updateStatus({
+				botId,
+				name: "Novara Music",
+				servers: 0,
+				users: 0,
+				online: false,
+			}).catch(err => this.logger.error("[BOT STATUS] Failed to send offline status:", err));
+		});
+
+		// Handle errors
+		this.on(Events.Error, (error) => {
+			this.logger.error("[BOT STATUS] Client error:", error);
+			BotStatusReporter.setOffline();
+		});
+
+		// Handle reconnect
+		this.on(Events.Invalidated, async () => {
+			this.logger.warn("[BOT STATUS] Session invalidated - marking as offline");
+			BotStatusReporter.setOffline();
+			// Send explicit offline update
+			BotStatusReporter.updateStatus({
+				botId: this.user?.id || env.CLIENT_ID || "",
+				name: "Novara Music",
+				servers: 0,
+				users: 0,
+				online: false,
+			}).catch(err => this.logger.error("[BOT STATUS] Failed to send offline status on invalidation:", err));
+		});
+
+		// Handle reconnections (after initial ready)
+		this.on(Events.ClientReady, async () => {
+			if (isFirstReady) return; // Skip on first ready (already handled above)
+			this.logger.info("[BOT STATUS] Reconnected - marking as online");
+			BotStatusReporter.setOnline();
+			// Send immediate update to website
+			const userCount = await this.getTotalUserCount();
+			BotStatusReporter.updateStatus({
+				botId: this.user?.id || env.CLIENT_ID || "",
+				name: "Novara Music",
+				servers: this.guilds.cache.size,
+				users: userCount,
+			});
+		});
 
 		this.on(Events.InteractionCreate, async (interaction: Interaction) => {
 			if (interaction.isButton() && interaction.guildId) {
@@ -238,6 +311,36 @@ export default class Lavamusic extends Client {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Get total unique user count across all guilds
+	 */
+	public async getTotalUserCount(): Promise<number> {
+		// Fetch all members from all guilds to ensure we have the most up-to-date count
+		const uniqueUsers = new Set<string>();
+		let totalFetchedMembers = 0;
+
+		for (const guild of this.guilds.cache.values()) {
+			try {
+				// Fetch all members in the guild (this will cache them)
+				const members = await guild.members.fetch().catch(() => guild.members.cache);
+				
+				// Add all member IDs to the set
+				for (const member of members.values()) {
+					uniqueUsers.add(member.id);
+				}
+				totalFetchedMembers += members.size;
+			} catch (err) {
+				// If fetch fails, fall back to cached members
+				for (const member of guild.members.cache.values()) {
+					uniqueUsers.add(member.id);
+				}
+				totalFetchedMembers += guild.members.cache.size;
+			}
+		}
+
+		return uniqueUsers.size;
 	}
 }
 

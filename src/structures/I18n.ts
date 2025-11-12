@@ -48,15 +48,3 @@ export function localization(lan: keyof typeof Locale, name: any, desc: any) {
 	};
 }
 
-export function descriptionLocalization(name: any, text: any) {
-	return i18n.getLocales().map((locale: string) => {
-		// Check if the locale is a valid key of the Locale enum
-		if (locale in Locale) {
-			const localeValue = Locale[locale as keyof typeof Locale];
-			return localization(localeValue as any, name, text);
-		}
-		// If locale is not in the enum, handle it accordingly
-		return localization(locale as any, name, text); // You can choose how to handle this case
-	});
-}
-
