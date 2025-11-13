@@ -55,10 +55,10 @@ export default class About extends Command {
 			.setAuthor({
 				name: "Lavamusic",
 				iconURL:
-					"https://media.discordapp.net/attachments/876035356460462090/888434725235097610/20210820_124325.png",
+					"https://novaraproject.co.uk/logo.png",
 			})
 			.setImage(
-				"https://media.discordapp.net/attachments/876035356460462090/888434725235097610/20210820_124325.png",
+				"https://novaraproject.co.uk/logo.png",
 			)
 			.setColor(this.client.color.main)
 			.addFields(
