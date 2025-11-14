@@ -1,3 +1,8 @@
+import {
+	ActionRowBuilder,
+	StringSelectMenuBuilder,
+	StringSelectMenuOptionBuilder,
+} from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import {
 	NO_PLAYER_CONFIG,
@@ -29,6 +34,151 @@ export default class Help extends Command {
 				},
 			],
 		});
+	}
+
+	/**
+	 * Generate category-specific embed with organized command groups
+	 */
+	public static generateCategoryEmbed(
+		client: Lavamusic,
+		locale: (key: string, params?: any) => string,
+		category: string,
+		categoryInfo: Record<string, { emoji: string; name: string; order: number; groups?: Record<string, string[]> }>,
+		commands: any,
+		guild: any,
+	): any {
+		const categoryData = categoryInfo[category] || { 
+			emoji: "📦", 
+			name: category.charAt(0).toUpperCase() + category.slice(1) 
+		};
+		
+		const categoryCommands = commands
+			.filter((cmd: any) => cmd.category === category)
+			.sort((a: any, b: any) => a.name.localeCompare(b.name));
+
+		const embed = client.embed()
+			.setColor(client.color.main)
+			.setTitle(`${categoryData.emoji} ${categoryData.name} Commands`)
+			.setDescription(`All available commands in the **${categoryData.name}** category\n\nUse \`${guild.prefix}help <command>\` for detailed information about a specific command.`)
+			.setThumbnail(client.user?.displayAvatarURL({ size: 2048 }) || null)
+			.setFooter({
+				text: locale("cmd.help.footer", { prefix: guild.prefix }),
+				iconURL: client.user?.displayAvatarURL({ size: 128 }),
+			})
+			.setTimestamp();
+
+		// If category has groups defined, organize by groups
+		if (categoryData.groups) {
+			const fields: any[] = [];
+			
+			for (const [groupName, commandNames] of Object.entries(categoryData.groups)) {
+				const groupCommands = categoryCommands.filter((cmd: any) => 
+					commandNames.includes(cmd.name.toLowerCase())
+				);
+				
+				if (groupCommands.size > 0) {
+					const commandList = Array.from(groupCommands.values())
+						.map((cmd: any) => `\`${cmd.name}\``)
+						.join(", ");
+					
+					fields.push({
+						name: `▸ ${groupName}`,
+						value: commandList || "No commands",
+						inline: false,
+					});
+				}
+			}
+			
+			// Add any commands not in groups
+			const groupedCommandNames = Object.values(categoryData.groups).flat();
+			const ungroupedCommands = categoryCommands.filter((cmd: any) => 
+				!groupedCommandNames.includes(cmd.name.toLowerCase())
+			);
+			
+			if (ungroupedCommands.size > 0) {
+				const ungroupedList = Array.from(ungroupedCommands.values())
+					.map((cmd: any) => `\`${cmd.name}\``)
+					.join(", ");
+				
+				fields.push({
+					name: "▸ Other",
+					value: ungroupedList,
+					inline: false,
+				});
+			}
+			
+			embed.addFields(...fields);
+		} else {
+			// No groups, show all commands in a simple list
+			const commandList = Array.from(categoryCommands.values())
+				.map((cmd: any) => `\`${cmd.name}\``);
+			
+			// Format in rows of 3 for better readability
+			const rows: string[] = [];
+			for (let i = 0; i < commandList.length; i += 3) {
+				rows.push(commandList.slice(i, i + 3).join(" "));
+			}
+			
+			embed.addFields({
+				name: `All ${categoryData.name} Commands (${categoryCommands.size})`,
+				value: rows.join("\n") || "No commands available",
+				inline: false,
+			});
+		}
+
+		return embed;
+	}
+
+	/**
+	 * Generate the main help embed with all categories
+	 */
+	public static generateMainHelpEmbed(
+		client: Lavamusic,
+		locale: (key: string, params?: any) => string,
+		categoryInfo: Record<string, { emoji: string; name: string; order: number; groups?: Record<string, string[]> }>,
+		sortedCategories: string[],
+		commands: any,
+		guild: any,
+	): any {
+		const embed = client.embed()
+			.setColor(client.color.main)
+			.setTitle(locale("cmd.help.title"))
+			.setDescription(
+				`${locale("cmd.help.content", {
+					bot: client.user?.username,
+					prefix: guild.prefix,
+				})}\n\n📊 **${commands.size}** commands across **${sortedCategories.length}** categories\n\n👇 **Select a category below to view commands**`,
+			)
+			.setThumbnail(client.user?.displayAvatarURL({ size: 2048 }) || null)
+			.setFooter({
+				text: locale("cmd.help.footer", { prefix: guild.prefix }),
+				iconURL: client.user?.displayAvatarURL({ size: 128 }),
+			})
+			.setTimestamp();
+
+		// Add quick overview of all categories
+		const overviewFields = sortedCategories.map((category) => {
+			const categoryCommands = commands.filter((cmd: any) => cmd.category === category);
+			const categoryData = categoryInfo[category] || { 
+				emoji: "📦", 
+				name: category.charAt(0).toUpperCase() + category.slice(1) 
+			};
+			
+			const commandPreview = categoryCommands
+				.map((cmd: any) => `\`${cmd.name}\``)
+				.slice(0, 5)
+				.join(", ");
+			const moreCount = categoryCommands.size > 5 ? ` +${categoryCommands.size - 5} more` : "";
+			
+			return {
+				name: `${categoryData.emoji} ${categoryData.name}`,
+				value: `${commandPreview}${moreCount}`,
+				inline: true,
+			};
+		});
+
+		embed.addFields(...overviewFields);
+		return embed;
 	}
 
 	public async run(
@@ -92,30 +242,122 @@ export default class Help extends Command {
 			return await ctx.sendMessage({ embeds: [helpEmbed] });
 		}
 
-		const fields = categories.map((category) => ({
-			name: category,
-			value: commands
-				.filter((cmd) => cmd.category === category)
-				.map((cmd) => `\`${cmd.name}\``)
-				.join(", "),
-			inline: false,
-		}));
+		// Category emojis, display names, and command groupings
+		const categoryInfo: Record<string, { 
+			emoji: string; 
+			name: string; 
+			order: number;
+			groups?: Record<string, string[]>;
+		}> = {
+			music: { 
+				emoji: "🎵", 
+				name: "Music", 
+				order: 1,
+				groups: {
+					"Playback": ["play", "search", "skip", "stop", "pause", "resume"],
+					"Queue Management": ["queue", "queuehistory", "queueshare", "move", "swap", "remove", "clear"],
+					"Playback Control": ["loop", "shuffle", "seek", "forward", "rewind", "volume"],
+					"Information": ["nowplaying", "lyrics", "fairplay"],
+				}
+			},
+			filters: { 
+				emoji: "🎛️", 
+				name: "Audio Filters", 
+				order: 2,
+				groups: {
+					"Effects": ["8d", "bassboost", "nightcore", "karaoke", "tremolo", "vibrato", "rotation"],
+					"Control": ["pitch", "rate", "speed", "lowpass", "reset"],
+				}
+			},
+			playlist: { 
+				emoji: "📋", 
+				name: "Playlists", 
+				order: 3,
+				groups: {
+					"Management": ["create", "delete", "list", "load"],
+					"Songs": ["addsong", "removesong", "steal"],
+					"Sharing": ["export", "import", "share", "stats"],
+				}
+			},
+			config: { 
+				emoji: "⚙️", 
+				name: "Configuration", 
+				order: 4,
+				groups: {
+					"Server Settings": ["setup", "prefix", "language", "dj"],
+					"Integrations": ["spotifylink", "lastfmlink", "unlink"],
+				}
+			},
+			info: { 
+				emoji: "ℹ️", 
+				name: "Information", 
+				order: 5,
+				groups: {
+					"Bot Info": ["botinfo", "about", "ping", "invite"],
+					"Statistics": ["stats", "lavalink", "achievements"],
+				}
+			},
+			general: { 
+				emoji: "🔧", 
+				name: "General", 
+				order: 6 
+			},
+		};
 
-		const helpEmbed = embed
-			.setColor(client.color.main)
-			.setTitle(ctx.locale("cmd.help.title"))
-			.setDescription(
-				ctx.locale("cmd.help.content", {
-					bot: client.user?.username,
-					prefix: guild.prefix,
-				}),
-			)
-			.setFooter({
-				text: ctx.locale("cmd.help.footer", { prefix: guild.prefix }),
-			})
-			.addFields(...fields);
+		// Sort categories by order
+		const sortedCategories = categories.sort((a, b) => {
+			const aInfo = categoryInfo[a] || { order: 999, name: a };
+			const bInfo = categoryInfo[b] || { order: 999, name: b };
+			return aInfo.order - bInfo.order;
+		});
 
-		return await ctx.sendMessage({ embeds: [helpEmbed] });
+		// Create select menu options
+		const selectOptions = sortedCategories.map((category) => {
+			const categoryData = categoryInfo[category] || { 
+				emoji: "📦", 
+				name: category.charAt(0).toUpperCase() + category.slice(1) 
+			};
+			const categoryCommands = commands.filter((cmd) => cmd.category === category);
+			
+			return new StringSelectMenuOptionBuilder()
+				.setLabel(`${categoryData.name} (${categoryCommands.size})`)
+				.setDescription(`${categoryCommands.size} command${categoryCommands.size !== 1 ? "s" : ""} available`)
+				.setValue(category)
+				.setEmoji(categoryData.emoji);
+		});
+
+		// Add "View All" option at the beginning
+		selectOptions.unshift(
+			new StringSelectMenuOptionBuilder()
+				.setLabel("📋 View All Categories")
+				.setDescription("Show all commands organized by category")
+				.setValue("all")
+				.setEmoji("📋")
+		);
+
+		// Create select menu
+		const selectMenu = new StringSelectMenuBuilder()
+			.setCustomId("help_category_select")
+			.setPlaceholder("Select a category to view commands...")
+			.addOptions(selectOptions);
+
+		const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>()
+			.addComponents(selectMenu);
+
+		// Create overview embed
+		const helpEmbed = Help.generateMainHelpEmbed(
+			client,
+			ctx.locale.bind(ctx),
+			categoryInfo,
+			sortedCategories,
+			commands,
+			guild,
+		);
+
+		return await ctx.sendMessage({ 
+			embeds: [helpEmbed],
+			components: [selectRow],
+		});
 	}
 }
 

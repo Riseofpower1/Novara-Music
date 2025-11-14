@@ -5,6 +5,8 @@ import {
 	EmbedBuilder,
 	MessageFlags,
 	ModalBuilder,
+	StringSelectMenuBuilder,
+	StringSelectMenuOptionBuilder,
 	TextInputBuilder,
 	TextInputStyle,
 	type GuildMember,
@@ -17,6 +19,7 @@ import {
 import { T } from "../../structures/I18n";
 import { Context, Event, type Lavamusic } from "../../structures/index";
 import { APIError, formatErrorForUser, handleError } from "../../utils/errors";
+import Help from "../../commands/info/Help";
 
 export default class InteractionCreate extends Event {
 	constructor(client: Lavamusic, file: string) {
@@ -26,6 +29,168 @@ export default class InteractionCreate extends Event {
 	}
 
 	public async run(interaction: Interaction<CacheType>): Promise<any> {
+		// Handle select menu interactions
+		if (interaction.isStringSelectMenu()) {
+			if (interaction.customId === "help_category_select") {
+				const selectedValue = interaction.values[0];
+				if (!interaction.guild || !interaction.guildId) return;
+
+				await interaction.deferUpdate();
+
+				const locale = await this.client.db.getLanguage(interaction.guildId);
+				const guild = await this.client.db.get(interaction.guildId);
+				const commands = this.client.commands.filter(
+					(cmd) => cmd.category !== "dev",
+				);
+				const categories = [...new Set(commands.map((cmd) => cmd.category))];
+
+				// Category info with groups
+				const categoryInfo: Record<string, { 
+					emoji: string; 
+					name: string; 
+					order: number;
+					groups?: Record<string, string[]>;
+				}> = {
+					music: { 
+						emoji: "🎵", 
+						name: "Music", 
+						order: 1,
+						groups: {
+							"Playback": ["play", "search", "skip", "stop", "pause", "resume"],
+							"Queue Management": ["queue", "queuehistory", "queueshare", "move", "swap", "remove", "clear"],
+							"Playback Control": ["loop", "shuffle", "seek", "forward", "rewind", "volume"],
+							"Information": ["nowplaying", "lyrics", "fairplay"],
+						}
+					},
+					filters: { 
+						emoji: "🎛️", 
+						name: "Audio Filters", 
+						order: 2,
+						groups: {
+							"Effects": ["8d", "bassboost", "nightcore", "karaoke", "tremolo", "vibrato", "rotation"],
+							"Control": ["pitch", "rate", "speed", "lowpass", "reset"],
+						}
+					},
+					playlist: { 
+						emoji: "📋", 
+						name: "Playlists", 
+						order: 3,
+						groups: {
+							"Management": ["create", "delete", "list", "load"],
+							"Songs": ["addsong", "removesong", "steal"],
+							"Sharing": ["export", "import", "share", "stats"],
+						}
+					},
+					config: { 
+						emoji: "⚙️", 
+						name: "Configuration", 
+						order: 4,
+						groups: {
+							"Server Settings": ["setup", "prefix", "language", "dj"],
+							"Integrations": ["spotifylink", "lastfmlink", "unlink"],
+						}
+					},
+					info: { 
+						emoji: "ℹ️", 
+						name: "Information", 
+						order: 5,
+						groups: {
+							"Bot Info": ["botinfo", "about", "ping", "invite"],
+							"Statistics": ["stats", "lavalink", "achievements"],
+						}
+					},
+					general: { 
+						emoji: "🔧", 
+						name: "General", 
+						order: 6 
+					},
+				};
+
+				const sortedCategories = categories.sort((a, b) => {
+					const aInfo = categoryInfo[a] || { order: 999, name: a };
+					const bInfo = categoryInfo[b] || { order: 999, name: b };
+					return aInfo.order - bInfo.order;
+				});
+
+				// Create select menu options (same as in help command)
+				const selectOptions = sortedCategories.map((category) => {
+					const categoryData = categoryInfo[category] || { 
+						emoji: "📦", 
+						name: category.charAt(0).toUpperCase() + category.slice(1) 
+					};
+					const categoryCommands = commands.filter((cmd) => cmd.category === category);
+					
+					return new StringSelectMenuOptionBuilder()
+						.setLabel(`${categoryData.name} (${categoryCommands.size})`)
+						.setDescription(`${categoryCommands.size} command${categoryCommands.size !== 1 ? "s" : ""} available`)
+						.setValue(category)
+						.setEmoji(categoryData.emoji)
+						.setDefault(selectedValue === category);
+				});
+
+				selectOptions.unshift(
+					new StringSelectMenuOptionBuilder()
+						.setLabel("📋 View All Categories")
+						.setDescription("Show all commands organized by category")
+						.setValue("all")
+						.setEmoji("📋")
+						.setDefault(selectedValue === "all")
+				);
+
+				const selectMenu = new StringSelectMenuBuilder()
+					.setCustomId("help_category_select")
+					.setPlaceholder("Select a category to view commands...")
+					.addOptions(selectOptions);
+
+				const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>()
+					.addComponents(selectMenu);
+
+				let embed: EmbedBuilder;
+				const T = (key: string, params?: any) => {
+					const { T: translate } = require("../../structures/I18n");
+					return translate(locale, key, params);
+				};
+
+				if (selectedValue === "all") {
+					// Show main help embed
+					embed = Help.generateMainHelpEmbed(
+						this.client,
+						T,
+						categoryInfo,
+						sortedCategories,
+						commands,
+						guild,
+					);
+				} else {
+					// Show category-specific embed
+					embed = Help.generateCategoryEmbed(
+						this.client,
+						T,
+						selectedValue,
+						categoryInfo,
+						commands,
+						guild,
+					);
+				}
+
+				// Update the message with new embed and components
+				try {
+					if (interaction.message && "edit" in interaction.message) {
+						await interaction.message.edit({
+							embeds: [embed],
+							components: [selectRow],
+						});
+					}
+				} catch (error) {
+					this.client.logger.error(
+						"[HELP] Failed to update help message:",
+						error instanceof Error ? error.message : error,
+					);
+				}
+				return;
+			}
+		}
+
 		// Handle button interactions
 		if (interaction.isButton()) {
 			if (interaction.customId === "lastfm_enter_token") {
@@ -277,10 +442,13 @@ export default class InteractionCreate extends Event {
 			interaction.type === InteractionType.ApplicationCommand &&
 			interaction.isChatInputCommand()
 		) {
-			const setup = await this.client.db.getSetup(interaction.guildId);
+			// Parallelize database calls for better performance
+			const [setup, locale] = await Promise.all([
+				this.client.db.getSetup(interaction.guildId),
+				this.client.db.getLanguage(interaction.guildId),
+			]);
 			const allowedCategories = ["filters", "music", "playlist"];
 			const commandInSetup = this.client.commands.get(interaction.commandName);
-			const locale = await this.client.db.getLanguage(interaction.guildId);
 
 			if (
 				setup &&
@@ -294,7 +462,10 @@ export default class InteractionCreate extends Event {
 			}
 
 			const { commandName } = interaction;
-			await this.client.db.get(interaction.guildId);
+			// Get guild data in background (non-blocking for command execution)
+			this.client.db.get(interaction.guildId).catch(() => {
+				// Silently fail - not critical for command execution
+			});
 
 			const command = this.client.commands.get(commandName);
 			if (!command) return;
@@ -440,9 +611,12 @@ export default class InteractionCreate extends Event {
 				}
 
 				if (command.player.dj) {
-					const dj = await this.client.db.getDj(interaction.guildId);
+					// Parallelize DJ and roles fetch
+					const [dj, djRole] = await Promise.all([
+						this.client.db.getDj(interaction.guildId),
+						this.client.db.getRoles(interaction.guildId),
+					]);
 					if (dj?.mode) {
-						const djRole = await this.client.db.getRoles(interaction.guildId);
 						// Auto-disable DJ mode if no roles are configured
 						if (!djRole || djRole.length === 0) {
 							await this.client.db.setDj(interaction.guildId, false);

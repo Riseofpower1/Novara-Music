@@ -10,6 +10,7 @@ import {
 	findWithError,
 	withDatabaseOperation,
 } from "./dbHelpers";
+import { getGuildCache } from "../utils/guildCache";
 
 const logger = new Logger();
 
@@ -138,6 +139,8 @@ export default class ServerData {
 			{ upsert: true, new: true },
 			"set_prefix",
 		);
+		// Invalidate cache
+		getGuildCache().invalidate(guildId, "guild");
 	}
 
 	public async getPrefix(guildId: string): Promise<string> {
@@ -159,10 +162,19 @@ export default class ServerData {
 			{ upsert: true, new: true },
 			"update_language",
 		);
+		// Invalidate cache
+		getGuildCache().invalidate(guildId, "language");
+		getGuildCache().invalidate(guildId, "guild");
 	}
 
 	public async getLanguage(guildId: string): Promise<string> {
-		return withDatabaseOperation(
+		const cache = getGuildCache();
+		const cached = cache.get<string>(guildId, "language");
+		if (cached !== null) {
+			return cached;
+		}
+
+		const language = await withDatabaseOperation(
 			async () => {
 				const guild = await this.get(guildId);
 				return guild?.language ?? env.DEFAULT_LANGUAGE;
@@ -170,18 +182,30 @@ export default class ServerData {
 			"get_language",
 			env.DEFAULT_LANGUAGE,
 		);
+
+		cache.set(guildId, "language", language);
+		return language;
 	}
 
 	// Setup methods
 	public async getSetup(guildId: string): Promise<ISetup | null> {
-		return withDatabaseOperation(
+		const cache = getGuildCache();
+		const cached = cache.get<ISetup | null>(guildId, "setup");
+		if (cached !== null) {
+			return cached;
+		}
+
+		const setup = await withDatabaseOperation(
 			async () => {
-				const setup = await findOneWithError<{ toObject: () => ISetup }>(Setup, { guildId }, "get_setup");
-				return setup ? setup.toObject() : null;
+				const setupDoc = await findOneWithError<{ toObject: () => ISetup }>(Setup, { guildId }, "get_setup");
+				return setupDoc ? setupDoc.toObject() : null;
 			},
 			"get_setup",
 			null,
 		);
+
+		cache.set(guildId, "setup", setup);
+		return setup;
 	}
 
 	public async setSetup(
@@ -196,10 +220,14 @@ export default class ServerData {
 			{ upsert: true, new: true },
 			"set_setup",
 		);
+		// Invalidate cache
+		getGuildCache().invalidate(guildId, "setup");
 	}
 
 	public async deleteSetup(guildId: string): Promise<void> {
 		await deleteWithError(Setup, { guildId }, "delete_setup");
+		// Invalidate cache
+		getGuildCache().invalidate(guildId, "setup");
 	}
 
 	// Stay (24/7) methods
@@ -244,52 +272,78 @@ export default class ServerData {
 			{ upsert: true, new: true },
 			"set_dj",
 		);
+		// Invalidate cache
+		getGuildCache().invalidate(guildId, "dj");
 	}
 
 	public async getDj(guildId: string): Promise<IDj | null> {
-		return withDatabaseOperation(
+		const cache = getGuildCache();
+		const cached = cache.get<IDj | null>(guildId, "dj");
+		if (cached !== null) {
+			return cached;
+		}
+
+		const dj = await withDatabaseOperation(
 			async () => {
-				const dj = await findOneWithError<{ toObject: () => IDj }>(Dj, { guildId }, "get_dj");
-				return dj ? dj.toObject() : null;
+				const djDoc = await findOneWithError<{ toObject: () => IDj }>(Dj, { guildId }, "get_dj");
+				return djDoc ? djDoc.toObject() : null;
 			},
 			"get_dj",
 			null,
 		);
+
+		cache.set(guildId, "dj", dj);
+		return dj;
 	}
 
 	// Role methods
 	public async getRoles(guildId: string): Promise<IRole[]> {
-		return withDatabaseOperation(
+		const cache = getGuildCache();
+		const cached = cache.get<IRole[]>(guildId, "roles");
+		if (cached !== null) {
+			return cached;
+		}
+
+		const roles = await withDatabaseOperation(
 			async () => {
-				const roles = await findWithError<{ toObject: () => IRole }>(Role, { guildId }, "get_roles");
-				return roles.map((r) => r.toObject());
+				const rolesDocs = await findWithError<{ toObject: () => IRole }>(Role, { guildId }, "get_roles");
+				return rolesDocs.map((r) => r.toObject());
 			},
 			"get_roles",
 			[],
 		);
+
+		cache.set(guildId, "roles", roles);
+		return roles;
 	}
 
 	public async addRole(guildId: string, roleId: string): Promise<void> {
-		return withDatabaseOperation(
+		await withDatabaseOperation(
 			async () => {
 				const role = new Role({ guildId, roleId });
 				await role.save();
 			},
 			"add_role",
 		);
+		// Invalidate cache
+		getGuildCache().invalidate(guildId, "roles");
 	}
 
 	public async removeRole(guildId: string, roleId: string): Promise<void> {
 		await deleteWithError(Role, { guildId, roleId }, "remove_role");
+		// Invalidate cache
+		getGuildCache().invalidate(guildId, "roles");
 	}
 
 	public async clearRoles(guildId: string): Promise<void> {
-		return withDatabaseOperation(
+		await withDatabaseOperation(
 			async () => {
 				await Role.deleteMany({ guildId });
 			},
 			"clear_roles",
 		);
+		// Invalidate cache
+		getGuildCache().invalidate(guildId, "roles");
 	}
 
 	// Playlist methods

@@ -40,40 +40,30 @@ export const loggingMiddleware: CommandMiddleware = async (ctx) => {
 };
 
 /**
- * Middleware for analytics tracking
+ * Middleware for analytics tracking (non-blocking)
  */
 export const analyticsMiddleware: CommandMiddleware = async (ctx) => {
 	const { command, userId, guildId } = ctx;
 	
-	try {
-		// Track command usage in analytics
-		if (guildId && ctx.client.db && "trackPlay" in ctx.client.db) {
-			await (ctx.client.db as { trackPlay: (data: { userId: string; guildId: string; track: { title: string; author: string; length: number; identifier: string; uri: string; isStream: boolean; isSeekable: boolean; position: number } }) => Promise<void> }).trackPlay({
-				userId,
-				guildId,
-				track: {
-					title: command.name,
-					author: "system",
-					length: 0,
-					identifier: `command:${command.name}`,
-					uri: "",
-					isStream: false,
-					isSeekable: false,
-					position: 0,
-				},
-			}).catch(() => {
-				// Silently fail analytics - don't block command execution
-			});
-		}
-	} catch (error) {
-		// Log but don't block command execution
-		handleError(error, {
-			client: ctx.client,
-			commandName: command.name,
+	// Fire and forget - don't block command execution
+	// Analytics should never slow down user commands
+	if (guildId && ctx.client.db && "trackPlay" in ctx.client.db) {
+		// Execute analytics in background without awaiting
+		(ctx.client.db as { trackPlay: (data: { userId: string; guildId: string; track: { title: string; author: string; length: number; identifier: string; uri: string; isStream: boolean; isSeekable: boolean; position: number } }) => Promise<void> }).trackPlay({
 			userId,
 			guildId,
-			channelId: ctx.channelId,
-			additionalContext: { operation: "analytics_tracking" },
+			track: {
+				title: command.name,
+				author: "system",
+				length: 0,
+				identifier: `command:${command.name}`,
+				uri: "",
+				isStream: false,
+				isSeekable: false,
+				position: 0,
+			},
+		}).catch(() => {
+			// Silently fail analytics - don't block command execution
 		});
 	}
 	

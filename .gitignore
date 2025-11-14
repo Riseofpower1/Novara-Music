@@ -549,3 +549,6 @@ certs/
 # Build and dist
 dist/
 build/
+
+# Bot status cache
+data/bot-status-cache.json

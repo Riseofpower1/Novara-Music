@@ -3,6 +3,8 @@ import { type Client, type TextChannel } from "discord.js";
 import { env } from "../env";
 import Logger from "../structures/Logger";
 import { Utils } from "./Utils";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join } from "path";
 
 interface StatusData {
 	botId: string;
@@ -25,6 +27,9 @@ export class BotStatusReporter {
 
 	// Store last status message ID for editing
 	private static lastStatusMessageId: string | null = null;
+	
+	// Cache file path for persistent storage
+	private static readonly CACHE_FILE_PATH = join(process.cwd(), "data", "bot-status-cache.json");
 
 	/**
 	 * Get axios config with optional insecure SSL setting
@@ -40,6 +45,88 @@ export class BotStatusReporter {
 	}
 
 	/**
+	 * Load cached message ID from file
+	 */
+	private static loadCachedMessageId(): string | null {
+		try {
+			if (!existsSync(this.CACHE_FILE_PATH)) {
+				this.logger.debug("[BOT STATUS] Cache file does not exist, starting fresh");
+				return null;
+			}
+
+			const cacheData = JSON.parse(
+				readFileSync(this.CACHE_FILE_PATH, "utf-8"),
+			) as { messageId?: string; channelId?: string };
+
+			// Verify the cached message ID is for the current channel
+			if (
+				cacheData.messageId &&
+				cacheData.channelId === this.statusChannelId
+			) {
+				this.logger.debug(
+					`[BOT STATUS] Loaded cached message ID: ${cacheData.messageId}`,
+				);
+				return cacheData.messageId;
+			}
+
+			// If channel ID changed, clear the cache
+			if (cacheData.channelId && cacheData.channelId !== this.statusChannelId) {
+				this.logger.info(
+					"[BOT STATUS] Status channel changed, clearing cached message ID",
+				);
+				this.saveCachedMessageId(null);
+				return null;
+			}
+
+			return null;
+		} catch (error) {
+			this.logger.warn(
+				"[BOT STATUS] Failed to load cached message ID:",
+				error instanceof Error ? error.message : error,
+			);
+			return null;
+		}
+	}
+
+	/**
+	 * Save message ID to cache file
+	 */
+	private static saveCachedMessageId(messageId: string | null): void {
+		try {
+			// Ensure data directory exists
+			const dataDir = join(process.cwd(), "data");
+			if (!existsSync(dataDir)) {
+				mkdirSync(dataDir, { recursive: true });
+			}
+
+			const cacheData = {
+				messageId,
+				channelId: this.statusChannelId,
+				lastUpdated: new Date().toISOString(),
+			};
+
+			writeFileSync(
+				this.CACHE_FILE_PATH,
+				JSON.stringify(cacheData, null, 2),
+				"utf-8",
+			);
+
+			if (messageId) {
+				this.logger.debug(
+					`[BOT STATUS] Saved message ID to cache: ${messageId}`,
+				);
+			} else {
+				this.logger.debug("[BOT STATUS] Cleared message ID from cache");
+			}
+		} catch (error) {
+			this.logger.warn(
+				"[BOT STATUS] Failed to save cached message ID:",
+				error instanceof Error ? error.message : error,
+			);
+		}
+	}
+
+	/**
 	 * Send or edit a status embed in the status channel
 	 */
 	static async updateStatusEmbed(
@@ -52,6 +139,11 @@ export class BotStatusReporter {
 					"[BOT STATUS] Status channel ID not configured, skipping embed update",
 				);
 				return;
+			}
+
+			// Load cached message ID if not already loaded
+			if (!this.lastStatusMessageId) {
+				this.lastStatusMessageId = this.loadCachedMessageId();
 			}
 
 			const channel = await client.channels.fetch(this.statusChannelId);
@@ -105,18 +197,27 @@ export class BotStatusReporter {
 				try {
 					const msg = await channel.messages.fetch(this.lastStatusMessageId);
 					await msg.edit({ embeds: [embed] });
+					this.logger.debug(
+						`[BOT STATUS] Updated existing status message: ${this.lastStatusMessageId}`,
+					);
 					return;
 				} catch (e) {
-					// If message not found, fall through to send new
+					// If message not found, clear cache and fall through to send new
 					this.logger.debug(
 						"[BOT STATUS] Previous message not found, sending new message",
 					);
+					this.lastStatusMessageId = null;
+					this.saveCachedMessageId(null);
 				}
 			}
 			// Otherwise, send a new message and store its ID
 			if (channel.isTextBased() && "send" in channel) {
 				const sent = await (channel as TextChannel).send({ embeds: [embed] });
 				this.lastStatusMessageId = sent.id;
+				this.saveCachedMessageId(sent.id);
+				this.logger.debug(
+					`[BOT STATUS] Sent new status message: ${sent.id}`,
+				);
 			}
 		} catch (err) {
 			this.logger.error("[BOT STATUS] Failed to send/edit status embed:", err);
@@ -260,6 +361,13 @@ export class BotStatusReporter {
 		botName: string,
 		intervalMinutes: number = 5,
 	): NodeJS.Timeout {
+		// Load cached message ID on startup
+		this.lastStatusMessageId = this.loadCachedMessageId();
+		if (this.lastStatusMessageId) {
+			this.logger.info(
+				`[BOT STATUS] Loaded cached message ID: ${this.lastStatusMessageId}`,
+			);
+		}
 		// Update immediately on startup with explicit online: true
 		// Use getTotalUserCount if available (async method)
 		const clientWithUserCount = client as Client & {
