@@ -1,5 +1,9 @@
 import type { AutocompleteInteraction } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class DeletePlaylist extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +18,8 @@ export default class DeletePlaylist extends Command {
 			aliases: ["del"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{

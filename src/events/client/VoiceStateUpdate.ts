@@ -5,6 +5,7 @@ import {
 	type VoiceState,
 } from "discord.js";
 import { Event, type Lavamusic } from "../../structures/index";
+import { handleError } from "../../utils/errors";
 
 export default class VoiceStateUpdate extends Event {
 	constructor(client: Lavamusic, file: string) {
@@ -44,7 +45,11 @@ export default class VoiceStateUpdate extends Event {
 				try {
 					await player.destroy();
 				} catch (err) {
-					this.client.logger?.error?.("destroy() on bot leave failed", err);
+					handleError(err, {
+						client: this.client,
+						guildId: guildId,
+						additionalContext: { operation: "player_destroy_on_bot_leave" },
+					});
 				}
 			}
 			return;
@@ -54,7 +59,11 @@ export default class VoiceStateUpdate extends Event {
 			try {
 				await player.destroy();
 			} catch (err) {
-				this.client.logger?.error?.("destroy() when bot not in VC failed", err);
+				handleError(err, {
+					client: this.client,
+					guildId: guildId,
+					additionalContext: { operation: "player_destroy_bot_not_in_vc" },
+				});
 			}
 			return;
 		}
@@ -86,7 +95,15 @@ export default class VoiceStateUpdate extends Event {
 				await this.handleMove(newState, this.client);
 			}
 		} catch (err) {
-			this.client.logger?.error?.("VoiceStateUpdate handler error", err);
+			handleError(err, {
+				client: this.client,
+				guildId: guildId,
+				additionalContext: {
+					operation: "voice_state_update",
+					type,
+					userId: newState.id,
+				},
+			});
 		}
 	}
 
@@ -106,7 +123,11 @@ export default class VoiceStateUpdate extends Event {
 					await player.resume();
 				}
 			} catch (err) {
-				client.logger?.error?.("pause/resume on serverMute toggle failed", err);
+				handleError(err, {
+					client,
+					guildId: newState.guild.id,
+					additionalContext: { operation: "pause_resume_on_mute" },
+				});
 			}
 		}
 
@@ -124,7 +145,11 @@ export default class VoiceStateUpdate extends Event {
 						try {
 							await newState.setDeaf(true);
 						} catch (err) {
-							client.logger?.warn?.("setDeaf(true) failed", err);
+							handleError(err, {
+								client,
+								guildId: newState.guild.id,
+								additionalContext: { operation: "set_deaf" },
+							});
 						}
 					}
 				}
@@ -154,7 +179,11 @@ export default class VoiceStateUpdate extends Event {
 				try {
 					await bot.setSuppressed(false);
 				} catch (err) {
-					client.logger?.warn?.("setSuppressed(false) failed", err);
+					handleError(err, {
+						client,
+						guildId: newState.guild.id,
+						additionalContext: { operation: "set_suppressed_join" },
+					});
 				}
 			}
 		}
@@ -179,7 +208,11 @@ export default class VoiceStateUpdate extends Event {
 					try {
 						await newState.setDeaf(true);
 					} catch (err) {
-						client.logger?.warn?.("setDeaf(true) on join failed", err);
+						handleError(err, {
+							client,
+							guildId: newState.guild.id,
+							additionalContext: { operation: "set_deaf_on_join" },
+						});
 					}
 				}
 			}
@@ -223,10 +256,11 @@ export default class VoiceStateUpdate extends Event {
 						try {
 							await latestPlayer.destroy();
 						} catch (err) {
-							client.logger?.error?.(
-								"destroy() after 5s no-listeners failed",
-								err,
-							);
+							handleError(err, {
+								client,
+								guildId: newState.guild.id,
+								additionalContext: { operation: "player_destroy_no_listeners" },
+							});
 						}
 					}
 				}
@@ -256,7 +290,11 @@ export default class VoiceStateUpdate extends Event {
 				try {
 					await bot.setSuppressed(false);
 				} catch (err) {
-					client.logger?.warn?.("setSuppressed(false) failed", err);
+					handleError(err, {
+						client,
+						guildId: newState.guild.id,
+						additionalContext: { operation: "set_suppressed_move" },
+					});
 				}
 			}
 		}

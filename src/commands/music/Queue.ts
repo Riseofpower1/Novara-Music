@@ -1,4 +1,9 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	ACTIVE_PLAYER_CONFIG,
+	createMusicCommandPermissions,
+} from "../../utils/commandHelpers";
+import { getQueuePosition } from "../../utils/queueHelpers";
 
 export default class Queue extends Command {
 	constructor(client: Lavamusic) {
@@ -13,22 +18,8 @@ export default class Queue extends Command {
 			aliases: ["q"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: true,
-				dj: false,
-				active: true,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: ACTIVE_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissions(),
 			slashCommand: true,
 			options: [],
 		});
@@ -48,7 +39,7 @@ export default class Queue extends Command {
 						ctx.locale("cmd.queue.now_playing", {
 							title: player.queue.current.info.title,
 							uri: player.queue.current.info.uri,
-							requester: (player.queue.current.requester as any).id,
+							requester: ((player.queue.current.requester as import("../../types").Requester)?.id || "unknown"),
 							duration: player.queue.current.info.isStream
 								? ctx.locale("cmd.queue.live")
 								: client.utils.formatTime(player.queue.current.info.duration),
@@ -59,16 +50,22 @@ export default class Queue extends Command {
 		}
 		const songStrings: string[] = [];
 		for (let i = 0; i < player.queue.tracks.length; i++) {
-			const track = player.queue.tracks[i];
+			const position = getQueuePosition(player, i);
+			if (!position) continue;
+			
+			const timeUntil = position.estimatedTimeUntilPlay > 0
+				? ` (~${client.utils.formatTime(position.estimatedTimeUntilPlay)} until play)`
+				: "";
+			
 			songStrings.push(
 				ctx.locale("cmd.queue.track_info", {
-					index: i + 1,
-					title: track.info.title,
-					uri: track.info.uri,
-					requester: (track.requester as any).id,
-					duration: track.info.isStream
+					index: position.index,
+					title: position.track.info.title,
+					uri: position.track.info.uri,
+					requester: position.requesterId,
+					duration: position.track.info.isStream
 						? ctx.locale("cmd.queue.live")
-						: client.utils.formatTime(track.info.duration!),
+						: client.utils.formatTime(position.track.info.duration!) + timeUntil,
 				}),
 			);
 		}

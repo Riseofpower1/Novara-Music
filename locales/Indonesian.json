@@ -703,5 +703,19 @@
 	},
 	"Service to unlink (spotify or lastfm)": "Service to unlink (spotify or lastfm)",
 	"Debug Spotify connection issues (Owner only)": "Debug Spotify connection issues (Owner only)",
-	"View your music achievements and progress": "View your music achievements and progress"
+	"View your music achievements and progress": "View your music achievements and progress",
+	"Move a track to a different position in the queue": "Move a track to a different position in the queue",
+	"Current position of the track (1-based)": "Current position of the track (1-based)",
+	"New position for the track (1-based)": "New position for the track (1-based)",
+	"View recently played tracks from queue history": "View recently played tracks from queue history",
+	"Export and share the current queue": "Export and share the current queue",
+	"Swap two tracks in the queue": "Swap two tracks in the queue",
+	"First track position (1-based)": "First track position (1-based)",
+	"Second track position (1-based)": "Second track position (1-based)",
+	"Export playlist to JSON format": "Export playlist to JSON format",
+	"Playlist name": "Playlist name",
+	"Import playlist from JSON format": "Import playlist from JSON format",
+	"JSON data of the playlist to import": "JSON data of the playlist to import",
+	"Overwrite existing playlist if it exists": "Overwrite existing playlist if it exists",
+	"View statistics for a playlist": "View statistics for a playlist"
 }

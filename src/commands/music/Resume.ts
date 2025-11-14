@@ -1,5 +1,9 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { AnalyticsService } from "../../database/analytics";
+import {
+	ACTIVE_PLAYER_CONFIG,
+	createMusicCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class Resume extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +18,8 @@ export default class Resume extends Command {
 			aliases: ["r"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: true,
-				dj: false,
-				active: true,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: ACTIVE_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissions(),
 			slashCommand: true,
 			options: [],
 		});
@@ -55,15 +45,17 @@ export default class Resume extends Command {
 		player.resume();
 		
 		// Log resume command for analytics
-		const analyticsService = new AnalyticsService();
-		const currentTrack = player.queue.current?.info;
-		await analyticsService.logActivity(ctx.guild.id, ctx.author.id, "resume_command", {
+		if (ctx.author) {
+			const analyticsService = new AnalyticsService();
+			const currentTrack = player.queue.current?.info;
+			await analyticsService.logActivity(ctx.guild.id, ctx.author.id, "resume_command", {
 			track: currentTrack?.title,
 			artist: currentTrack?.author,
 			timestamp: new Date().toISOString()
-		}).catch((err) => {
-			this.client.logger.error("Failed to log resume command:", err);
-		});
+			}).catch((err) => {
+				this.client.logger.error("Failed to log resume command:", err);
+			});
+		}
 		
 		return await ctx.sendMessage({
 			embeds: [

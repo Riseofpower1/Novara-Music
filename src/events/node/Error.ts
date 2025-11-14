@@ -1,6 +1,7 @@
 import type { LavalinkNode } from "lavalink-client";
 import { Event, type Lavamusic } from "../../structures/index";
 import { sendLog } from "../../utils/BotLog";
+import { APIError, handleError } from "../../utils/errors";
 
 export default class ErrorEvent extends Event {
 	constructor(client: Lavamusic, file: string) {
@@ -10,13 +11,33 @@ export default class ErrorEvent extends Event {
 	}
 
 	public async run(node: LavalinkNode, error: Error): Promise<void> {
-		this.client.logger.error(
-			`Node ${node.id} error: ${error.stack || error.message}`,
+		const lavalinkError = new APIError(
+			`Lavalink node error: ${error.message}`,
+			"Lavalink",
+			undefined,
+			true, // Retryable
+			{
+				nodeId: node.id,
+				nodeHost: node.options?.host || "unknown",
+				stack: error.stack,
+			},
 		);
-		sendLog(
+
+		handleError(lavalinkError, {
+			client: this.client,
+			additionalContext: {
+				operation: "lavalink_node_error",
+				nodeId: node.id,
+			},
+		});
+
+		// Also send to log channel
+		await sendLog(
 			this.client,
 			`Node ${node.id} encountered an error: ${error.stack || error.message}`,
 			"error",
-		);
+		).catch((logError) => {
+			this.client.logger.error("Failed to send node error to log channel:", logError);
+		});
 	}
 }

@@ -1,5 +1,9 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { AnalyticsService } from "../../database/analytics";
+import {
+	ACTIVE_PLAYER_CONFIG,
+	createMusicCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class Seek extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +18,8 @@ export default class Seek extends Command {
 			aliases: ["s"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: true,
-				dj: false,
-				active: true,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: ACTIVE_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{
@@ -92,15 +82,17 @@ export default class Seek extends Command {
 		player?.seek(duration);
 		
 		// Log seek operation for analytics
-		const analyticsService = new AnalyticsService();
-		await analyticsService.logActivity(ctx.guild.id, ctx.author.id, "seek_operation", {
-			seekPosition: duration,
-			trackDuration: current.duration,
-			track: current.title,
-			timestamp: new Date().toISOString()
-		}).catch((err) => {
-			this.client.logger.error("Failed to log seek command:", err);
-		});
+		if (ctx.author) {
+			const analyticsService = new AnalyticsService();
+			await analyticsService.logActivity(ctx.guild.id, ctx.author.id, "seek_operation", {
+				seekPosition: duration,
+				trackDuration: current.duration,
+				track: current.title,
+				timestamp: new Date().toISOString()
+			}).catch((err) => {
+				this.client.logger.error("Failed to log seek command:", err);
+			});
+		}
 		
 		return await ctx.sendMessage({
 			embeds: [

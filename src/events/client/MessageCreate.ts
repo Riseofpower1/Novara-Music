@@ -1,10 +1,6 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: explanation */
 import {
-	ActionRowBuilder,
-	ButtonBuilder,
-	ButtonStyle,
 	ChannelType,
-	Collection,
 	EmbedBuilder,
 	type GuildMember,
 	type Message,
@@ -13,6 +9,10 @@ import {
 } from "discord.js";
 import { T } from "../../structures/I18n";
 import { Context, Event, type Lavamusic } from "../../structures/index";
+import {
+	formatErrorForUser,
+	handleError,
+} from "../../utils/errors";
 
 export default class MessageCreate extends Event {
 	constructor(client: Lavamusic, file: string) {
@@ -71,24 +71,26 @@ export default class MessageCreate extends Event {
 		const clientMember = message.guild.members.resolve(this.client.user!)!;
 		const isDev = this.client.env.OWNER_IDS?.includes(message.author.id);
 
+		// Check channel-specific permissions
+		const channelPermissions = message.channel.permissionsFor(clientMember);
 		if (
 			!(
 				message.inGuild() &&
-				message.channel
-					.permissionsFor(clientMember)
-					?.has(PermissionFlagsBits.ViewChannel)
+				channelPermissions?.has(PermissionFlagsBits.ViewChannel)
 			)
 		)
 			return;
 
+		// Check both guild and channel permissions
 		if (
 			!(
-				clientMember.permissions.has(PermissionFlagsBits.ViewChannel) &&
-				clientMember.permissions.has(PermissionFlagsBits.SendMessages) &&
-				clientMember.permissions.has(PermissionFlagsBits.EmbedLinks) &&
-				clientMember.permissions.has(PermissionFlagsBits.ReadMessageHistory)
+				channelPermissions?.has(PermissionFlagsBits.ViewChannel) &&
+				channelPermissions?.has(PermissionFlagsBits.SendMessages) &&
+				channelPermissions?.has(PermissionFlagsBits.EmbedLinks) &&
+				channelPermissions?.has(PermissionFlagsBits.ReadMessageHistory)
 			)
 		) {
+			// Try to send DM, but don't fail if we can't
 			return await message.author
 				.send({
 					content: T(locale, "event.message.no_send_message"),
@@ -117,6 +119,8 @@ export default class MessageCreate extends Event {
 								.map((perm: string) => `\`${perm}\``)
 								.join(", "),
 						}),
+					}).catch(() => {
+						// Silently fail if we can't send message (missing permissions)
 					});
 				}
 			}
@@ -136,6 +140,8 @@ export default class MessageCreate extends Event {
 				) {
 					return await message.reply({
 						content: T(locale, "event.message.no_user_permission"),
+					}).catch(() => {
+						// Silently fail if we can't send message (missing permissions)
 					});
 				}
 			}
@@ -212,27 +218,27 @@ export default class MessageCreate extends Event {
 					this.client.db.getRoles(message.guildId),
 				]);
 				if (dj?.mode) {
-					if (!djRole) {
-						return await message.reply({
-							content: T(locale, "event.message.no_dj_role"),
-						});
-					}
-
-					const hasDJRole = (message.member as GuildMember).roles.cache.some(
-						(role) => djRole.map((r) => r.roleId).includes(role.id),
-					);
-					if (
-						!(
-							isDev ||
-							(hasDJRole &&
-								!(message.member as GuildMember).permissions.has(
+					// Auto-disable DJ mode if no roles are configured
+					if (!djRole || djRole.length === 0) {
+						await this.client.db.setDj(message.guildId, false);
+						// Allow command to proceed since DJ mode is now disabled
+					} else {
+						const hasDJRole = (message.member as GuildMember).roles.cache.some(
+							(role) => djRole.map((r) => r.roleId).includes(role.id),
+						);
+						if (
+							!(
+								isDev ||
+								hasDJRole ||
+								(message.member as GuildMember).permissions.has(
 									PermissionFlagsBits.ManageGuild,
-								))
-						)
-					) {
-						return await message.reply({
-							content: T(locale, "event.message.no_dj_permission"),
-						});
+								)
+							)
+						) {
+							return await message.reply({
+								content: T(locale, "event.message.no_dj_permission"),
+							});
+						}
 					}
 				}
 			}
@@ -256,31 +262,34 @@ export default class MessageCreate extends Event {
 			return;
 		}
 
-		if (!this.client.cooldown.has(cmd)) {
-			this.client.cooldown.set(cmd, new Collection());
-		}
-		const now = Date.now();
-		const timestamps = this.client.cooldown.get(cmd)!;
-		const cooldownAmount = (command.cooldown || 5) * 1000;
+		// Enhanced cooldown check using new cooldown manager
+		const { normalizeCooldown } = await import("../../utils/commandHelpers");
+		const cooldownConfig = normalizeCooldown(command.cooldown);
+		const cooldownCheck = this.client.cooldownManager.isOnCooldown(
+			command.name,
+			cooldownConfig,
+			message.author.id,
+			message.guildId,
+			message.channelId,
+		);
 
-		if (timestamps.has(message.author.id)) {
-			const expirationTime =
-				timestamps.get(message.author.id)! + cooldownAmount;
-			const timeLeft = (expirationTime - now) / 1000;
-			if (now < expirationTime && timeLeft > 0.9) {
-				return await message.reply({
-					content: T(locale, "event.message.cooldown", {
-						time: timeLeft.toFixed(1),
-						command: cmd,
-					}),
-				});
-			}
-			timestamps.set(message.author.id, now);
-			setTimeout(() => timestamps.delete(message.author.id), cooldownAmount);
-		} else {
-			timestamps.set(message.author.id, now);
-			setTimeout(() => timestamps.delete(message.author.id), cooldownAmount);
+		if (cooldownCheck.onCooldown && cooldownCheck.timeLeft) {
+			return await message.reply({
+				content: T(locale, "event.message.cooldown", {
+					time: cooldownCheck.timeLeft.toFixed(1),
+					command: cmd,
+				}),
+			});
 		}
+
+		// Set cooldown
+		this.client.cooldownManager.setCooldown(
+			command.name,
+			cooldownConfig,
+			message.author.id,
+			message.guildId,
+			message.channelId,
+		);
 
 		if (args.includes("@everyone") || args.includes("@here")) {
 			return await message.reply({
@@ -288,14 +297,47 @@ export default class MessageCreate extends Event {
 			});
 		}
 
+		// Execute middleware
+		const { executeMiddleware, defaultMiddleware } = await import("../../utils/commandMiddleware");
+		const middlewareResult = await executeMiddleware(defaultMiddleware, {
+			command,
+			client: this.client,
+			context: ctx,
+			message,
+			userId: message.author.id,
+			guildId: message.guildId,
+			channelId: message.channelId,
+		});
+
+		if (!middlewareResult.success && middlewareResult.stop) {
+			if (middlewareResult.message) {
+				return await message.reply({ content: middlewareResult.message });
+			}
+			return;
+		}
+
 		try {
-			return command.run(this.client, ctx, ctx.args);
-		} catch (error: any) {
-			this.client.logger.error(error);
+			return await command.run(this.client, ctx, ctx.args as string[]);
+		} catch (error: unknown) {
+			// Handle error with proper context
+			handleError(error, {
+				client: this.client,
+				commandName: command.name,
+				userId: message.author.id,
+				guildId: message.guildId || undefined,
+				channelId: message.channelId,
+			});
+
+			// Get user-friendly error message
+			const userMessage = formatErrorForUser(error);
+
+			// Send error message to user (with error handling for permission errors)
 			await message.reply({
 				content: T(locale, "event.message.error", {
-					error: error.message || "Unknown error",
+					error: userMessage,
 				}),
+			}).catch(() => {
+				// Silently fail if we can't send message (missing permissions)
 			});
 		} finally {
 			const logs = this.client.channels.cache.get(

@@ -1,5 +1,10 @@
 import type { AutocompleteInteraction } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
+import { handleError } from "../../utils/errors";
 
 export default class RemoveSong extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +19,8 @@ export default class RemoveSong extends Command {
 			aliases: ["rs"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{
@@ -115,7 +106,14 @@ export default class RemoveSong extends Command {
 				.setColor(this.client.color.green);
 			await ctx.sendMessage({ embeds: [successMessage] });
 		} catch (error) {
-			console.error(error);
+			handleError(error, {
+				client: this.client,
+				commandName: "removesong",
+				userId: ctx.author?.id,
+				guildId: ctx.guild?.id,
+				channelId: ctx.channel?.id,
+				additionalContext: { operation: "remove_song_from_playlist", playlist, song },
+			});
 			const genericError = this.client
 				.embed()
 				.setDescription(ctx.locale("cmd.removesong.messages.error_occurred"))

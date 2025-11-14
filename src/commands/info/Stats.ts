@@ -1,5 +1,10 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { analyticsService } from "../../database/analytics";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
+import { handleError } from "../../utils/errors";
 
 export default class Stats extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +19,8 @@ export default class Stats extends Command {
 			aliases: ["statistics", "mystats"],
 			cooldown: 5,
 			args: false,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{
@@ -105,7 +96,13 @@ export default class Stats extends Command {
 				],
 			});
 		} catch (error) {
-			console.error("Error in stats command:", error);
+			handleError(error, {
+				client: this.client,
+				commandName: "stats",
+				userId: ctx.author?.id,
+				guildId: ctx.guild?.id,
+				channelId: ctx.channel?.id,
+			});
 			return await ctx.sendMessage({
 				embeds: [
 					embed

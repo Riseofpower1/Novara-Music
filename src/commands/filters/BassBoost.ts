@@ -5,6 +5,10 @@ import {
 	type Context,
 	type Lavamusic,
 } from "../../structures/index.js";
+import {
+	ACTIVE_DJ_PLAYER_CONFIG,
+	createMusicCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class BassBoost extends Command {
 	constructor(client: Lavamusic) {
@@ -24,22 +28,8 @@ export default class BassBoost extends Command {
 			aliases: ["bb"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: true,
-				dj: true,
-				active: true,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: ACTIVE_DJ_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{
@@ -64,7 +54,8 @@ export default class BassBoost extends Command {
 			return await ctx.sendMessage(
 				ctx.locale("event.message.no_music_playing"),
 			);
-		switch (ctx.args[0]?.toLowerCase()) {
+		const arg = ctx.args && typeof ctx.args[0] === "string" ? ctx.args[0].toLowerCase() : "";
+		switch (arg) {
 			case "high": {
 				await player.filterManager.setEQ(EQList.BassboostHigh);
 				await ctx.sendMessage({

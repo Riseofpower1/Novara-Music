@@ -1,8 +1,5 @@
 import {
-	ActionRowBuilder,
-	ButtonBuilder,
 	type ButtonInteraction,
-	ButtonStyle,
 	type ChannelSelectMenuInteraction,
 	GuildMember,
 	type MentionableSelectMenuInteraction,
@@ -20,6 +17,7 @@ import { Event, type Lavamusic } from "../../structures/index";
 import type { Requester } from "../../types";
 import { trackStart } from "../../utils/SetupSystem";
 import { AnalyticsService } from "../../database/analytics";
+import { getButtons } from "../../utils/Buttons";
 
 export default class TrackStart extends Event {
 	constructor(client: Lavamusic, file: string) {
@@ -72,6 +70,27 @@ export default class TrackStart extends Event {
 			);
 		}
 
+		// Format loop mode display
+		const loopModeDisplay = 
+			player.repeatMode === "off" 
+				? "Off" 
+				: player.repeatMode === "track" 
+					? "🎵 Track" 
+					: "📝 Queue";
+
+		// Get next track preview
+		const nextTrack = player.queue.tracks[0];
+		const nextTrackPreview = nextTrack 
+			? `**[${nextTrack.info.title}](${nextTrack.info.uri})**\n${nextTrack.info.author || "Unknown"}`
+			: "No tracks in queue";
+
+		// Enhanced description with better formatting
+		const description = `🎵 **[${track.info.title}](${track.info.uri})**\n🎤 ${track.info.author || "Unknown"}`;
+
+		// Initial progress bar (will be updated by interval)
+		const initialProgressBar = this.client.utils.progressBar(0, track.info.duration, 20);
+		const initialTime = `${this.client.utils.formatTime(0)} / ${this.client.utils.formatTime(track.info.duration)}`;
+
 		const embed = this.client
 			.embed()
 			.setAuthor({
@@ -81,35 +100,52 @@ export default class TrackStart extends Event {
 					this.client.user?.displayAvatarURL({ extension: "png" }),
 			})
 			.setColor(this.client.color.main)
-			.setDescription(`🎵 **[${track.info.title}](${track.info.uri})**`)
+			.setDescription(description)
+			.setThumbnail(track.info.artworkUrl || this.client.user?.displayAvatarURL({ extension: "png" }) || null)
 			.setFooter({
 				text: T(locale, "player.trackStart.requested_by", {
 					user: (track.requester as Requester).username,
 				}),
 				iconURL: (track.requester as Requester).avatarURL,
 			})
-			.setImage(track.info.artworkUrl)
 			.addFields(
+				{
+					name: "🎚️ Progress",
+					value: `\`${initialProgressBar}\`\n\`${initialTime}\``,
+					inline: false,
+				},
 				{
 					name: "⏱️ " + T(locale, "player.trackStart.duration"),
 					value: track.info.isStream
-						? "🔴 LIVE"
+						? "🔴 LIVE STREAM"
 						: this.client.utils.formatTime(track.info.duration),
 					inline: true,
 				},
 				{
-					name: "🎤 " + T(locale, "player.trackStart.author"),
-					value: track.info.author || "Unknown",
+					name: "🔊 Volume",
+					value: `${player.volume}%`,
 					inline: true,
 				},
 				{
-					name: "📊 Queue Size",
+					name: "🔄 Loop Mode",
+					value: loopModeDisplay,
+					inline: true,
+				},
+				{
+					name: "📊 Queue",
 					value: `${player.queue.tracks.length} track${player.queue.tracks.length !== 1 ? "s" : ""} waiting`,
 					inline: true,
 				},
 				{
-					name: "🎚️ Progress",
-					value: `\`▯▯▯▯▯▯▯▯▯▯\` 0%`,
+					name: "📍 Source",
+					value: track.info.sourceName 
+						? track.info.sourceName.charAt(0).toUpperCase() + track.info.sourceName.slice(1)
+						: "Unknown",
+					inline: true,
+				},
+				{
+					name: "⏭️ Next Up",
+					value: nextTrackPreview,
 					inline: false,
 				}
 			)
@@ -132,59 +168,13 @@ export default class TrackStart extends Event {
 		} else {
 			const message = await channel.send({
 				embeds: [embed],
-				components: [createButtonRow(player, this.client)],
+				components: getButtons(player, this.client),
 			});
 
 			player.set("messageId", message.id);
 			createCollector(message, player, track, embed, this.client, locale);
 		}
 	}
-}
-
-function createButtonRow(
-	player: Player,
-	client: Lavamusic,
-): ActionRowBuilder<ButtonBuilder> {
-	const previousButton = new ButtonBuilder()
-
-		.setCustomId("previous")
-		.setEmoji(client.emoji.previous)
-		.setStyle(ButtonStyle.Secondary)
-		.setDisabled(!player.queue.previous);
-
-	const resumeButton = new ButtonBuilder()
-		.setCustomId("resume")
-		.setEmoji(player.paused ? client.emoji.resume : client.emoji.pause)
-		.setStyle(player.paused ? ButtonStyle.Success : ButtonStyle.Secondary);
-
-	const stopButton = new ButtonBuilder()
-		.setCustomId("stop")
-		.setEmoji(client.emoji.stop)
-		.setStyle(ButtonStyle.Danger);
-
-	const skipButton = new ButtonBuilder()
-		.setCustomId("skip")
-		.setEmoji(client.emoji.skip)
-		.setStyle(ButtonStyle.Secondary);
-
-	const loopButton = new ButtonBuilder()
-		.setCustomId("loop")
-		.setEmoji(
-			player.repeatMode === "track"
-				? client.emoji.loop.track
-				: client.emoji.loop.none,
-		)
-		.setStyle(
-			player.repeatMode !== "off" ? ButtonStyle.Success : ButtonStyle.Secondary,
-		);
-
-	return new ActionRowBuilder<ButtonBuilder>().addComponents(
-		resumeButton,
-		previousButton,
-		stopButton,
-		skipButton,
-		loopButton,
-	);
 }
 
 function createCollector(
@@ -222,31 +212,82 @@ function createCollector(
 
 			const duration = player.queue.current.info.duration;
 			const position = player.position;
-			const percentage = Math.min((position / duration) * 100, 100);
-			const filledBars = Math.floor(percentage / 10);
-			const emptyBars = 10 - filledBars;
-			const progressBar = `\`${"█".repeat(filledBars)}${"▯".repeat(emptyBars)}\` ${Math.floor(percentage)}%`;
+			const remaining = Math.max(0, duration - position);
 			
-			// Format time as mm:ss only
-			const formatTimeShort = (ms: number) => {
-				const totalSeconds = Math.floor(ms / 1000);
-				const minutes = Math.floor(totalSeconds / 60);
-				const seconds = totalSeconds % 60;
-				return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-			};
+			// Use the existing progressBar utility with 20 segments
+			const progressBar = client.utils.progressBar(position, duration, 20);
 			
-			const currentTime = formatTimeShort(position);
-			const totalTime = formatTimeShort(duration);
+			// Format time display
+			const currentTime = client.utils.formatTime(position);
+			const totalTime = client.utils.formatTime(duration);
+			const remainingTime = client.utils.formatTime(remaining);
+			const timeDisplay = `${currentTime} / ${totalTime} • ${remainingTime} remaining`;
 
-			// Update the embed with new progress
+			// Update loop mode display
+			const loopModeDisplay = 
+				player.repeatMode === "off" 
+					? "Off" 
+					: player.repeatMode === "track" 
+						? "🎵 Track" 
+						: "📝 Queue";
+
+			// Get next track preview
+			const nextTrack = player.queue.tracks[0];
+			const nextTrackPreview = nextTrack 
+				? `**[${nextTrack.info.title}](${nextTrack.info.uri})**\n${nextTrack.info.author || "Unknown"}`
+				: "No tracks in queue";
+
+			// Update buttons to reflect current state
+			const updatedButtons = getButtons(player, client);
+
+			// Update the embed with new progress and current player state
 			const updatedEmbed = new EmbedBuilder(embed.data)
-				.spliceFields(3, 1, {
-					name: "🎚️ Progress",
-					value: `${progressBar}\n${currentTime} / ${totalTime}`,
-					inline: false,
-				});
+				.spliceFields(0, 7, 
+					{
+						name: "🎚️ Progress",
+						value: `\`${progressBar}\`\n\`${timeDisplay}\``,
+						inline: false,
+					},
+					{
+						name: "⏱️ " + T(locale, "player.trackStart.duration"),
+						value: player.queue.current.info.isStream
+							? "🔴 LIVE STREAM"
+							: client.utils.formatTime(duration),
+						inline: true,
+					},
+					{
+						name: "🔊 Volume",
+						value: `${player.volume}%`,
+						inline: true,
+					},
+					{
+						name: "🔄 Loop Mode",
+						value: loopModeDisplay,
+						inline: true,
+					},
+					{
+						name: "📊 Queue",
+						value: `${player.queue.tracks.length} track${player.queue.tracks.length !== 1 ? "s" : ""} waiting`,
+						inline: true,
+					},
+					{
+						name: "📍 Source",
+						value: player.queue.current.info.sourceName 
+							? player.queue.current.info.sourceName.charAt(0).toUpperCase() + player.queue.current.info.sourceName.slice(1)
+							: "Unknown",
+						inline: true,
+					},
+					{
+						name: "⏭️ Next Up",
+						value: nextTrackPreview,
+						inline: false,
+					}
+				);
 
-			await message.edit({ embeds: [updatedEmbed] }).catch(() => {
+			await message.edit({ 
+				embeds: [updatedEmbed],
+				components: updatedButtons,
+			}).catch(() => {
 				clearInterval(progressInterval);
 			});
 		} catch (error) {
@@ -272,34 +313,37 @@ function createCollector(
 							iconURL: interaction.user.avatarURL({}),
 						}),
 					],
-					components: [createButtonRow(player, client)],
+					components: getButtons(player, client),
 				});
 			}
 		};
 		switch (interaction.customId) {
-			case "previous":
-				if (player.queue.previous) {
-					await interaction.deferUpdate();
-					const previousTrack = player.queue.previous[0];
-					player.play({
-						track: previousTrack,
-					});
-					await editMessage(
-						T(locale, "player.trackStart.previous_by", {
-							user: interaction.user.tag,
-						}),
-					);
-				} else {
+			case "PREV_BUT":
+			case "previous": {
+				if (!player.queue.previous) {
 					await interaction.reply({
 						content: T(locale, "player.trackStart.no_previous_song"),
 						flags: MessageFlags.Ephemeral,
 					});
+					return;
 				}
+				await interaction.deferUpdate();
+				const previousTrack = player.queue.previous[0];
+				player.play({
+					track: previousTrack,
+				});
+				await editMessage(
+					T(locale, "player.trackStart.previous_by", {
+						user: interaction.user.tag,
+					}),
+				);
 				break;
-			case "resume":
+			}
+			case "PAUSE_BUT":
+			case "resume": {
+				await interaction.deferUpdate();
 				if (player.paused) {
 					player.resume();
-					await interaction.deferUpdate();
 					await editMessage(
 						T(locale, "player.trackStart.resumed_by", {
 							user: interaction.user.tag,
@@ -307,7 +351,6 @@ function createCollector(
 					);
 				} else {
 					player.pause();
-					await interaction.deferUpdate();
 					await editMessage(
 						T(locale, "player.trackStart.paused_by", {
 							user: interaction.user.tag,
@@ -315,27 +358,26 @@ function createCollector(
 					);
 				}
 				break;
-			case "stop": {
-				player.stopPlaying(true, false);
-				await interaction.deferUpdate();
-				break;
 			}
-			case "skip":
-				if (player.queue.tracks.length > 0) {
-					await interaction.deferUpdate();
-					player.skip();
-					await editMessage(
-						T(locale, "player.trackStart.skipped_by", {
-							user: interaction.user.tag,
-						}),
-					);
-				} else {
+			case "SKIP_BUT":
+			case "skip": {
+				if (player.queue.tracks.length === 0) {
 					await interaction.reply({
 						content: T(locale, "player.trackStart.no_more_songs_in_queue"),
 						flags: MessageFlags.Ephemeral,
 					});
+					return;
 				}
+				await interaction.deferUpdate();
+				player.skip();
+				await editMessage(
+					T(locale, "player.trackStart.skipped_by", {
+						user: interaction.user.tag,
+					}),
+				);
 				break;
+			}
+			case "LOOP_BUT":
 			case "loop": {
 				await interaction.deferUpdate();
 				switch (player.repeatMode) {
@@ -367,6 +409,31 @@ function createCollector(
 						break;
 					}
 				}
+				break;
+			}
+			case "STOP_BUT":
+			case "stop": {
+				await interaction.deferUpdate();
+				player.stopPlaying(true, false);
+				break;
+			}
+			case "SHUFFLE_BUT": {
+				await interaction.deferUpdate();
+				player.queue.shuffle();
+				await editMessage(
+					`🔀 ${T(locale, "player.trackStart.shuffled_by", {
+						user: interaction.user.tag,
+					})}`,
+				);
+				break;
+			}
+			case "AUTOPLAY_BUT": {
+				await interaction.deferUpdate();
+				const autoplay = player.get<boolean>("autoplay");
+				player.set("autoplay", !autoplay);
+				await editMessage(
+					T(locale, autoplay ? "cmd.autoplay.messages.disabled" : "cmd.autoplay.messages.enabled"),
+				);
 				break;
 			}
 		}

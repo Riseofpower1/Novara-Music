@@ -1,7 +1,6 @@
 import type { Message } from "discord.js";
 import { T } from "../../structures/I18n";
 import { Event, type Lavamusic } from "../../structures/index";
-import type { Requester } from "../../types";
 import { getButtons } from "../../utils/Buttons";
 import { buttonReply } from "../../utils/SetupSystem";
 import { checkDj } from "../player/TrackStart";

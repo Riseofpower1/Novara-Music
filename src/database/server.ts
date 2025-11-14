@@ -1,6 +1,17 @@
 import mongoose from "mongoose";
 import { env } from "../env";
 import { Guild, Setup, Stay, Dj, Role, Playlist } from "./models";
+import { DatabaseError } from "../utils/errors";
+import Logger from "../structures/Logger";
+import {
+	deleteWithError,
+	findOneAndUpdateWithError,
+	findOneWithError,
+	findWithError,
+	withDatabaseOperation,
+} from "./dbHelpers";
+
+const logger = new Logger();
 
 export interface IGuild {
 	guildId: string;
@@ -48,376 +59,517 @@ export default class ServerData {
 	private async connect(): Promise<void> {
 		try {
 			if (!env.DATABASE_URL) {
-				throw new Error("DATABASE_URL is not defined in environment variables");
+				throw new DatabaseError(
+					"DATABASE_URL is not defined in environment variables",
+					"connect",
+					false,
+				);
 			}
 
 			await mongoose.connect(env.DATABASE_URL, {
 				retryWrites: true,
 				w: "majority",
+				// Connection pooling optimization
+				maxPoolSize: 10, // Maximum number of connections in the pool
+				minPoolSize: 2, // Minimum number of connections to maintain
+				maxIdleTimeMS: 30000, // Close connections after 30 seconds of inactivity
+				serverSelectionTimeoutMS: 5000, // Timeout for server selection
+				socketTimeoutMS: 45000, // Timeout for socket operations
+				// Buffer commands if connection is not ready
+				bufferCommands: true,
+ // Disable mongoose buffering (use connection pooling instead)
 			});
 
 			ServerData.connected = true;
-			console.log("✅ Connected to MongoDB");
+			logger.success("Connected to MongoDB");
 		} catch (error) {
-			console.error("❌ Failed to connect to MongoDB:", error);
-			throw error;
+			const dbError = new DatabaseError(
+				`Failed to connect to MongoDB: ${error instanceof Error ? error.message : String(error)}`,
+				"connect",
+				true, // Retryable
+				{
+					databaseUrl: env.DATABASE_URL ? "configured" : "missing",
+				},
+			);
+
+			logger.error("Failed to connect to MongoDB:", dbError.toLogFormat());
+			throw dbError;
 		}
 	}
 
 	// Guild methods
 	public async get(guildId: string): Promise<IGuild> {
-		try {
-			let guild = await Guild.findOne({ guildId });
-			if (!guild) {
-				guild = await this.createGuild(guildId);
-			}
-			return guild.toObject();
-		} catch (error) {
-			console.error("Error getting guild:", error);
-			throw error;
-		}
+		return withDatabaseOperation(
+			async () => {
+				let guild = await findOneWithError<{ toObject: () => IGuild }>(Guild, { guildId }, "get_guild");
+				if (!guild) {
+					guild = await this.createGuild(guildId);
+				}
+				if (!guild) {
+					throw new Error("Failed to create guild");
+				}
+				return guild.toObject();
+			},
+			"get_guild",
+		);
 	}
 
 	private async createGuild(guildId: string): Promise<any> {
-		try {
-			// Use findOneAndUpdate with upsert instead of save to prevent duplicate key errors
-			const guild = await Guild.findOneAndUpdate(
-				{ guildId },
-				{
-					$setOnInsert: {
-						guildId,
-						prefix: env.PREFIX,
-						language: env.DEFAULT_LANGUAGE,
-					},
+		return findOneAndUpdateWithError(
+			Guild,
+			{ guildId },
+			{
+				$setOnInsert: {
+					guildId,
+					prefix: env.PREFIX,
+					language: env.DEFAULT_LANGUAGE,
 				},
-				{ upsert: true, new: true }
-			);
-			return guild;
-		} catch (error) {
-			console.error("Error creating guild:", error);
-			throw error;
-		}
+			},
+			{ upsert: true, new: true },
+			"create_guild",
+		);
 	}
 
 	public async setPrefix(guildId: string, prefix: string): Promise<void> {
-		try {
-			await Guild.findOneAndUpdate(
-				{ guildId },
-				{ prefix },
-				{ upsert: true, new: true }
-			);
-		} catch (error) {
-			console.error("Error setting prefix:", error);
-			throw error;
-		}
+		await findOneAndUpdateWithError(
+			Guild,
+			{ guildId },
+			{ prefix },
+			{ upsert: true, new: true },
+			"set_prefix",
+		);
 	}
 
 	public async getPrefix(guildId: string): Promise<string> {
-		try {
-			const guild = await this.get(guildId);
-			return guild?.prefix ?? env.PREFIX;
-		} catch (error) {
-			console.error("Error getting prefix:", error);
-			return env.PREFIX;
-		}
+		return withDatabaseOperation(
+			async () => {
+				const guild = await this.get(guildId);
+				return guild?.prefix ?? env.PREFIX;
+			},
+			"get_prefix",
+			env.PREFIX,
+		);
 	}
 
-	public async updateLanguage(
-		guildId: string,
-		language: string
-	): Promise<void> {
-		try {
-			await Guild.findOneAndUpdate(
-				{ guildId },
-				{ language },
-				{ upsert: true, new: true }
-			);
-		} catch (error) {
-			console.error("Error updating language:", error);
-			throw error;
-		}
+	public async updateLanguage(guildId: string, language: string): Promise<void> {
+		await findOneAndUpdateWithError(
+			Guild,
+			{ guildId },
+			{ language },
+			{ upsert: true, new: true },
+			"update_language",
+		);
 	}
 
 	public async getLanguage(guildId: string): Promise<string> {
-		try {
-			const guild = await this.get(guildId);
-			return guild?.language ?? env.DEFAULT_LANGUAGE;
-		} catch (error) {
-			console.error("Error getting language:", error);
-			return env.DEFAULT_LANGUAGE;
-		}
+		return withDatabaseOperation(
+			async () => {
+				const guild = await this.get(guildId);
+				return guild?.language ?? env.DEFAULT_LANGUAGE;
+			},
+			"get_language",
+			env.DEFAULT_LANGUAGE,
+		);
 	}
 
 	// Setup methods
 	public async getSetup(guildId: string): Promise<ISetup | null> {
-		try {
-			const setup = await Setup.findOne({ guildId });
-			return setup ? setup.toObject() : null;
-		} catch (error) {
-			console.error("Error getting setup:", error);
-			throw error;
-		}
+		return withDatabaseOperation(
+			async () => {
+				const setup = await findOneWithError<{ toObject: () => ISetup }>(Setup, { guildId }, "get_setup");
+				return setup ? setup.toObject() : null;
+			},
+			"get_setup",
+			null,
+		);
 	}
 
 	public async setSetup(
 		guildId: string,
 		textId: string,
-		messageId: string
+		messageId: string,
 	): Promise<void> {
-		try {
-			await Setup.findOneAndUpdate(
-				{ guildId },
-				{ textId, messageId },
-				{ upsert: true, new: true }
-			);
-		} catch (error) {
-			console.error("Error setting setup:", error);
-			throw error;
-		}
+		await findOneAndUpdateWithError(
+			Setup,
+			{ guildId },
+			{ textId, messageId },
+			{ upsert: true, new: true },
+			"set_setup",
+		);
 	}
 
 	public async deleteSetup(guildId: string): Promise<void> {
-		try {
-			await Setup.deleteOne({ guildId });
-		} catch (error) {
-			console.error("Error deleting setup:", error);
-			throw error;
-		}
+		await deleteWithError(Setup, { guildId }, "delete_setup");
 	}
 
 	// Stay (24/7) methods
 	public async set_247(
 		guildId: string,
 		textId: string,
-		voiceId: string
+		voiceId: string,
 	): Promise<void> {
-		try {
-			await Stay.findOneAndUpdate(
-				{ guildId },
-				{ textId, voiceId },
-				{ upsert: true, new: true }
-			);
-		} catch (error) {
-			console.error("Error setting 247:", error);
-			throw error;
-		}
+		await findOneAndUpdateWithError(
+			Stay,
+			{ guildId },
+			{ textId, voiceId },
+			{ upsert: true, new: true },
+			"set_247",
+		);
 	}
 
 	public async delete_247(guildId: string): Promise<void> {
-		try {
-			await Stay.deleteOne({ guildId });
-		} catch (error) {
-			console.error("Error deleting 247:", error);
-			throw error;
-		}
+		await deleteWithError(Stay, { guildId }, "delete_247");
 	}
 
 	public async get_247(guildId?: string): Promise<IStay | IStay[] | null> {
-		try {
-			if (guildId) {
-				const stay = await Stay.findOne({ guildId });
-				return stay ? stay.toObject() : null;
-			}
-			const stays = await Stay.find({});
-			return stays.map((s) => s.toObject());
-		} catch (error) {
-			console.error("Error getting 247:", error);
-			throw error;
-		}
+		return withDatabaseOperation(
+			async () => {
+				if (guildId) {
+					const stay = await findOneWithError<{ toObject: () => IStay }>(Stay, { guildId }, "get_247");
+					return stay ? stay.toObject() : null;
+				}
+				const stays = await findWithError<{ toObject: () => IStay }>(Stay, {}, "get_all_247");
+				return stays.map((s) => s.toObject());
+			},
+			"get_247",
+		);
 	}
 
 	// DJ methods
 	public async setDj(guildId: string, mode: boolean): Promise<void> {
-		try {
-			await Dj.findOneAndUpdate(
-				{ guildId },
-				{ mode },
-				{ upsert: true, new: true }
-			);
-		} catch (error) {
-			console.error("Error setting DJ mode:", error);
-			throw error;
-		}
+		await findOneAndUpdateWithError(
+			Dj,
+			{ guildId },
+			{ mode },
+			{ upsert: true, new: true },
+			"set_dj",
+		);
 	}
 
 	public async getDj(guildId: string): Promise<IDj | null> {
-		try {
-			const dj = await Dj.findOne({ guildId });
-			return dj ? dj.toObject() : null;
-		} catch (error) {
-			console.error("Error getting DJ:", error);
-			throw error;
-		}
+		return withDatabaseOperation(
+			async () => {
+				const dj = await findOneWithError<{ toObject: () => IDj }>(Dj, { guildId }, "get_dj");
+				return dj ? dj.toObject() : null;
+			},
+			"get_dj",
+			null,
+		);
 	}
 
 	// Role methods
 	public async getRoles(guildId: string): Promise<IRole[]> {
-		try {
-			const roles = await Role.find({ guildId });
-			return roles.map((r) => r.toObject());
-		} catch (error) {
-			console.error("Error getting roles:", error);
-			throw error;
-		}
+		return withDatabaseOperation(
+			async () => {
+				const roles = await findWithError<{ toObject: () => IRole }>(Role, { guildId }, "get_roles");
+				return roles.map((r) => r.toObject());
+			},
+			"get_roles",
+			[],
+		);
 	}
 
 	public async addRole(guildId: string, roleId: string): Promise<void> {
-		try {
-			const role = new Role({ guildId, roleId });
-			await role.save();
-		} catch (error) {
-			console.error("Error adding role:", error);
-			throw error;
-		}
+		return withDatabaseOperation(
+			async () => {
+				const role = new Role({ guildId, roleId });
+				await role.save();
+			},
+			"add_role",
+		);
 	}
 
 	public async removeRole(guildId: string, roleId: string): Promise<void> {
-		try {
-			await Role.deleteOne({ guildId, roleId });
-		} catch (error) {
-			console.error("Error removing role:", error);
-			throw error;
-		}
+		await deleteWithError(Role, { guildId, roleId }, "remove_role");
 	}
 
 	public async clearRoles(guildId: string): Promise<void> {
-		try {
-			await Role.deleteMany({ guildId });
-		} catch (error) {
-			console.error("Error clearing roles:", error);
-			throw error;
-		}
+		return withDatabaseOperation(
+			async () => {
+				await Role.deleteMany({ guildId });
+			},
+			"clear_roles",
+		);
 	}
 
 	// Playlist methods
 	public async getPlaylist(
 		userId: string,
-		name: string
+		name: string,
 	): Promise<IPlaylist | null> {
-		try {
-			const playlist = await Playlist.findOne({ userId, name });
-			return playlist ? playlist.toObject() : null;
-		} catch (error) {
-			console.error("Error getting playlist:", error);
-			throw error;
-		}
+		return withDatabaseOperation(
+			async () => {
+				const playlist = await findOneWithError<{ tracks: string[]; save: () => Promise<void> }>(
+					Playlist,
+					{ userId, name },
+					"get_playlist",
+				);
+				return playlist ? (playlist as unknown as { toObject: () => IPlaylist }).toObject() : null;
+			},
+			"get_playlist",
+			null,
+		);
 	}
 
 	public async getUserPlaylists(userId: string): Promise<IPlaylist[]> {
-		try {
-			const playlists = await Playlist.find({ userId });
-			return playlists.map((p) => p.toObject());
-		} catch (error) {
-			console.error("Error getting user playlists:", error);
-			throw error;
-		}
+		return withDatabaseOperation(
+			async () => {
+				const playlists = await findWithError(
+					Playlist,
+					{ userId },
+					"get_user_playlists",
+				);
+				return playlists.map((p) => (p as { toObject: () => IPlaylist }).toObject());
+			},
+			"get_user_playlists",
+			[],
+		);
 	}
 
 	public async createPlaylist(userId: string, name: string): Promise<void> {
-		try {
-			const playlist = new Playlist({ userId, name, tracks: [] });
-			await playlist.save();
-		} catch (error) {
-			console.error("Error creating playlist:", error);
-			throw error;
-		}
+		return withDatabaseOperation(
+			async () => {
+				const playlist = new Playlist({ userId, name, tracks: [] });
+				await playlist.save();
+			},
+			"create_playlist",
+		);
 	}
 
 	public async createPlaylistWithTracks(
 		userId: string,
 		name: string,
-		tracks: string[]
+		tracks: string[],
 	): Promise<void> {
-		try {
-			const playlist = new Playlist({ userId, name, tracks });
-			await playlist.save();
-		} catch (error) {
-			console.error("Error creating playlist with tracks:", error);
-			throw error;
-		}
+		return withDatabaseOperation(
+			async () => {
+				const playlist = new Playlist({ userId, name, tracks });
+				await playlist.save();
+			},
+			"create_playlist_with_tracks",
+		);
 	}
 
 	public async deletePlaylist(userId: string, name: string): Promise<void> {
-		try {
-			await Playlist.deleteOne({ userId, name });
-		} catch (error) {
-			console.error("Error deleting playlist:", error);
-			throw error;
-		}
+		await deleteWithError(Playlist, { userId, name }, "delete_playlist");
 	}
 
 	public async deleteSongsFromPlaylist(
 		userId: string,
-		playlistName: string
+		playlistName: string,
 	): Promise<void> {
-		try {
-			await Playlist.findOneAndUpdate(
-				{ userId, name: playlistName },
-				{ tracks: [] },
-				{ new: true }
-			);
-		} catch (error) {
-			console.error("Error deleting songs from playlist:", error);
-			throw error;
-		}
+		await findOneAndUpdateWithError(
+			Playlist,
+			{ userId, name: playlistName },
+			{ tracks: [] },
+			{ new: true },
+			"delete_songs_from_playlist",
+		);
 	}
 
 	public async addTracksToPlaylist(
 		userId: string,
 		playlistName: string,
-		tracks: string[]
+		tracks: string[],
 	): Promise<void> {
-		try {
-			let playlist = await Playlist.findOne({ userId, name: playlistName });
+		return withDatabaseOperation(
+			async () => {
+				let playlist = await findOneWithError<{ tracks: string[]; save: () => Promise<void> }>(
+					Playlist,
+					{ userId, name: playlistName },
+					"add_tracks_to_playlist_find",
+				);
 
-			if (playlist) {
-				playlist.tracks.push(...tracks);
-				await playlist.save();
-			} else {
-				const newPlaylist = new Playlist({
-					userId,
-					name: playlistName,
-					tracks,
-				});
-				await newPlaylist.save();
-			}
-		} catch (error) {
-			console.error("Error adding tracks to playlist:", error);
-			throw error;
-		}
+				if (playlist) {
+					playlist.tracks.push(...tracks);
+					await playlist.save();
+				} else {
+					const newPlaylist = new Playlist({
+						userId,
+						name: playlistName,
+						tracks,
+					});
+					await newPlaylist.save();
+				}
+			},
+			"add_tracks_to_playlist",
+		);
 	}
 
 	public async removeSong(
 		userId: string,
 		playlistName: string,
-		encodedSong: string
+		encodedSong: string,
 	): Promise<void> {
-		try {
-			const playlist = await Playlist.findOne({ userId, name: playlistName });
-			if (playlist) {
-				const index = playlist.tracks.indexOf(encodedSong);
-				if (index !== -1) {
-					playlist.tracks.splice(index, 1);
-					await playlist.save();
+		return withDatabaseOperation(
+			async () => {
+				const playlist = await findOneWithError<{ tracks: string[]; save: () => Promise<void> }>(
+					Playlist,
+					{ userId, name: playlistName },
+					"remove_song_find",
+				);
+				if (playlist) {
+					const index = playlist.tracks.indexOf(encodedSong);
+					if (index !== -1) {
+						playlist.tracks.splice(index, 1);
+						await playlist.save();
+					}
 				}
-			}
-		} catch (error) {
-			console.error("Error removing song from playlist:", error);
-			throw error;
-		}
+			},
+			"remove_song",
+		);
 	}
 
 	public async getTracksFromPlaylist(
 		userId: string,
-		playlistName: string
+		playlistName: string,
 	): Promise<string[] | null> {
-		try {
-			const playlist = await Playlist.findOne({ userId, name: playlistName });
-			return playlist ? playlist.tracks : null;
-		} catch (error) {
-			console.error("Error getting tracks from playlist:", error);
-			throw error;
-		}
+		return withDatabaseOperation(
+			async () => {
+				const playlist = await findOneWithError<{ tracks: string[]; save: () => Promise<void> }>(
+					Playlist,
+					{ userId, name: playlistName },
+					"get_tracks_from_playlist",
+				);
+				return playlist ? playlist.tracks : null;
+			},
+			"get_tracks_from_playlist",
+			null,
+		);
+	}
+
+	// Collaborative playlist methods
+	public async addCollaborator(
+		userId: string,
+		playlistName: string,
+		collaboratorId: string,
+		permission: "read" | "write" = "write",
+	): Promise<void> {
+		return withDatabaseOperation(
+			async () => {
+				const playlist = await findOneWithError<{ tracks: string[]; save: () => Promise<void> }>(
+					Playlist,
+					{ userId, name: playlistName },
+					"add_collaborator_find",
+				);
+				if (playlist) {
+					const playlistData = playlist as import("../types/playlist").ExtendedPlaylist & typeof playlist;
+					if (!playlistData.collaborators) {
+						playlistData.collaborators = [];
+					}
+					// Remove existing collaborator if present
+					playlistData.collaborators = playlistData.collaborators.filter(
+						(c: import("../types/playlist").PlaylistPermission) => c.userId !== collaboratorId,
+					);
+					// Add new collaborator
+					playlistData.collaborators.push({ userId: collaboratorId, permission });
+					playlistData.isCollaborative = true;
+					await playlist.save();
+				}
+			},
+			"add_collaborator",
+		);
+	}
+
+	public async removeCollaborator(
+		userId: string,
+		playlistName: string,
+		collaboratorId: string,
+	): Promise<void> {
+		return withDatabaseOperation(
+			async () => {
+				const playlist = await findOneWithError<{ tracks: string[]; save: () => Promise<void> }>(
+					Playlist,
+					{ userId, name: playlistName },
+					"remove_collaborator_find",
+				);
+				if (playlist) {
+					const playlistData = playlist as import("../types/playlist").ExtendedPlaylist & typeof playlist;
+					if (playlistData.collaborators) {
+						playlistData.collaborators = playlistData.collaborators.filter(
+							(c: import("../types/playlist").PlaylistPermission) => c.userId !== collaboratorId,
+						);
+						if (playlistData.collaborators.length === 0) {
+							playlistData.isCollaborative = false;
+						}
+						await playlist.save();
+					}
+				}
+			},
+			"remove_collaborator",
+		);
+	}
+
+	public async sharePlaylist(
+		userId: string,
+		playlistName: string,
+		sharedUserId: string,
+		permission: "read" | "write" = "read",
+	): Promise<void> {
+		return withDatabaseOperation(
+			async () => {
+				const playlist = await findOneWithError<{ tracks: string[]; save: () => Promise<void> }>(
+					Playlist,
+					{ userId, name: playlistName },
+					"share_playlist_find",
+				);
+				if (playlist) {
+					const playlistData = playlist as import("../types/playlist").ExtendedPlaylist & typeof playlist;
+					if (!playlistData.sharedWith) {
+						playlistData.sharedWith = [];
+					}
+					// Remove existing share if present
+					playlistData.sharedWith = playlistData.sharedWith.filter(
+						(s: import("../types/playlist").PlaylistPermission) => s.userId !== sharedUserId,
+					);
+					// Add new share
+					playlistData.sharedWith.push({ userId: sharedUserId, permission });
+					await playlist.save();
+				}
+			},
+			"share_playlist",
+		);
+	}
+
+	public async setPlaylistPublic(
+		userId: string,
+		playlistName: string,
+		isPublic: boolean,
+	): Promise<void> {
+		return withDatabaseOperation(
+			async () => {
+				await findOneAndUpdateWithError(
+					Playlist,
+					{ userId, name: playlistName },
+					{ isPublic },
+					{ new: true },
+					"set_playlist_public",
+				);
+			},
+			"set_playlist_public",
+		);
+	}
+
+	public async incrementPlaylistPlayCount(
+		userId: string,
+		playlistName: string,
+	): Promise<void> {
+		return withDatabaseOperation(
+			async () => {
+				const playlist = await findOneWithError<{ tracks: string[]; save: () => Promise<void> }>(
+					Playlist,
+					{ userId, name: playlistName },
+					"increment_play_count_find",
+				);
+				if (playlist) {
+					const playlistData = playlist as import("../types/playlist").ExtendedPlaylist & typeof playlist;
+					playlistData.playCount = (playlistData.playCount || 0) + 1;
+					playlistData.lastPlayedAt = new Date();
+					await playlist.save();
+				}
+			},
+			"increment_playlist_play_count",
+		);
 	}
 }
 

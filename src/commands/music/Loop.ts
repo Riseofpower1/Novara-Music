@@ -1,5 +1,9 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { AnalyticsService } from "../../database/analytics";
+import {
+	ACTIVE_PLAYER_CONFIG,
+	createMusicCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class Loop extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +18,8 @@ export default class Loop extends Command {
 			aliases: ["loop"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: true,
-				dj: false,
-				active: true,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: ACTIVE_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{
@@ -61,7 +51,7 @@ export default class Loop extends Command {
 		const player = client.manager.getPlayer(ctx.guild.id);
 		let loopMessage = "";
 
-		const args = ctx.args ? ctx.args[0]?.toLowerCase() : "";
+		const args = ctx.args && typeof ctx.args[0] === "string" ? ctx.args[0].toLowerCase() : "";
 		let mode: string | undefined = undefined;
 		try {
 			mode = ctx.options?.get("mode")?.value as string | undefined;
@@ -118,13 +108,15 @@ export default class Loop extends Command {
 		}
 
 		// Log loop mode change for analytics
-		const analyticsService = new AnalyticsService();
-		await analyticsService.logActivity(ctx.guild.id, ctx.author.id, "loop_mode_changed", {
-			mode: newLoopMode,
-			timestamp: new Date().toISOString()
-		}).catch((err) => {
-			this.client.logger.error("Failed to log loop command:", err);
-		});
+		if (ctx.author) {
+			const analyticsService = new AnalyticsService();
+			await analyticsService.logActivity(ctx.guild.id, ctx.author.id, "loop_mode_changed", {
+				mode: newLoopMode,
+				timestamp: new Date().toISOString()
+			}).catch((err) => {
+				this.client.logger.error("Failed to log loop command:", err);
+			});
+		}
 
 		return await ctx.sendMessage({
 			embeds: [embed.setDescription(loopMessage)],

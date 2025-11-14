@@ -1,4 +1,8 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissionsWithExtra,
+} from "../../utils/commandHelpers";
 
 export default class DestroyInvites extends Command {
 	constructor(client: Lavamusic) {
@@ -13,22 +17,12 @@ export default class DestroyInvites extends Command {
 			aliases: ["di"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: true,
-				client: [
-					"SendMessages",
-					"ManageGuild",
-					"ReadMessageHistory",
-					"ViewChannel",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissionsWithExtra(
+				["ManageGuild"],
+				[],
+				true,
+			),
 			slashCommand: false,
 			options: [],
 		});

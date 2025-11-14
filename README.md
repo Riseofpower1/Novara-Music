@@ -11,11 +11,19 @@ A feature-rich Discord music bot built with Discord.js and Lavalink, providing s
 ### 🎶 Music Playback
 - **Play** - Play songs from YouTube, Spotify, SoundCloud, and more
 - **Queue Management** - View, remove, and rearrange songs in your queue
+  - Position indicators with estimated play times
+  - Queue history tracking (recently played tracks)
+  - Queue sharing and export
+  - Smart reordering (move, swap, group by requester/duration)
 - **Loop Control** - Single track loop, full queue loop, and autoplay modes
 - **Search** - Find and play songs with advanced search capabilities
 - **Lyrics** - Display song lyrics using Genius API
 - **Now Playing** - Show currently playing track information
 - **Playlist Support** - Create and manage custom playlists
+  - Collaborative playlists with permissions
+  - Public/private sharing
+  - Import/export playlists (JSON format)
+  - Playlist statistics and analytics
 - **Fair Play** - Queue songs fairly when multiple requests are made
 - **Auto-play** - Continue playing related songs when queue ends
 
@@ -52,12 +60,18 @@ Apply advanced audio effects to enhance your listening experience:
 - **Theme System** - Customize embed colors and styling
 - **Setup Wizard** - Easy configuration for new servers
 - **Logging** - Comprehensive activity logging
+- **Error Handling** - Robust error handling with retry logic and user-friendly messages
+- **Memory Management** - Automatic memory monitoring and leak detection
+- **Performance Optimization** - Database query optimization with indexing and caching
+- **Event System** - Event middleware, metrics tracking, and replay capabilities
+- **Command Middleware** - Logging, analytics, and permission middleware for commands
+- **Bot Status Reporting** - Optional status reporting to external API with Discord embed updates
 
 ### 📊 Commands
-Over 50 commands organized in categories:
-- **Music** - play, skip, pause, resume, queue, loop, lyrics, and more
+Over 70 commands organized in categories:
+- **Music** - play, skip, pause, resume, queue, queuehistory, queueshare, move, swap, loop, lyrics, and more
 - **Filters** - 8d, bassboost, nightcore, karaoke, tremolo, vibrato, and more
-- **Playlist** - create, delete, add/remove songs, view playlists
+- **Playlist** - create, delete, add/remove songs, view playlists, export, import, stats, share
 - **Config** - setup, prefix, language, dj, link, unlink
 - **Info** - help, about, botinfo, ping, stats
 - **Developer** - eval, deploy, restart, shutdown
@@ -119,6 +133,12 @@ SSL_KEY_PATH=/path/to/key.pem
 
 # Genius Lyrics API (Optional)
 GENIUS_ACCESS_TOKEN=your_genius_token
+
+# Bot Status Reporting (Optional)
+BOT_STATUS_URL=http://localhost:3006/api/bot-status
+BOT_STATUS_TOKEN=your_status_api_token
+BOT_STATUS_CHANNEL_ID=your_discord_channel_id
+BOT_STATUS_INSECURE_SSL=false
 ```
 
 4. **Start the bot**
@@ -150,7 +170,11 @@ Use `/setup` to configure the bot for your server:
 ```
 /play <song_name_or_url>
 /search <song_name>
-/queue
+/queue                    - View queue with position indicators
+/queuehistory            - View recently played tracks
+/queueshare              - Export and share queue
+/move <from> <to>        - Move track to different position
+/swap <pos1> <pos2>      - Swap two tracks in queue
 /skip
 /pause
 /resume
@@ -167,10 +191,14 @@ Use `/setup` to configure the bot for your server:
 
 ### Playlist Management
 ```
-/playlist create <name>
-/playlist add <url|search>
-/playlist play <name>
-/playlist delete <name>
+/playlist create <name>          - Create a new playlist
+/playlist add <url|search>        - Add songs to playlist
+/playlist play <name>             - Load playlist into queue
+/playlist delete <name>           - Delete a playlist
+/playlist export <name>          - Export playlist to JSON
+/playlist import <name> <json>   - Import playlist from JSON
+/playlist stats <name>           - View playlist statistics
+/playlist share <name> <user>    - Share playlist with user
 ```
 
 ### Linking Accounts
@@ -224,11 +252,13 @@ src/
 - Handles Spotify authorization code flow
 - Manages token exchange and refresh
 - Stores user credentials securely
+- Retry logic with exponential backoff
 
 **LastfmOAuthService** (`src/oauth/lastfm.ts`)
 - Manages Last.fm OAuth flow
 - Generates MD5 signatures for API requests
 - Handles session key management
+- Retry logic with exponential backoff
 
 **OAuthRedirectHandler** (`src/oauth/redirectHandler.ts`)
 - Express.js server for OAuth callbacks
@@ -240,17 +270,47 @@ src/
 - Base command class with validation
 - Permission checking
 - DJ mode enforcement
-- Cooldown management
+- Enhanced cooldown management (per-user, per-guild, per-channel, global)
+- Command middleware support (logging, analytics, permissions)
+- Argument validation utilities
+
+**Error Handling** (`src/utils/errors/`)
+- Custom error classes (BotError, APIError, DatabaseError, etc.)
+- Centralized error handling with context
+- Retry logic with exponential backoff
+- User-friendly error messages
+
+**Memory Management** (`src/utils/memoryManager.ts`)
+- Automatic memory monitoring
+- Memory leak detection
+- Cache cleanup and optimization
+- Performance tracking
+
+**Database Optimization** (`src/database/queryOptimization.ts`)
+- Query performance monitoring
+- Batch operations
+- Optimized projections
+- Index management
 
 ## 🗄️ Database Models
 
-Uses MongoDB with Prisma ORM:
+Uses MongoDB with Mongoose:
 - **User** - User profiles and settings
 - **Guild** - Server-specific configurations
 - **SpotifyUser** - Spotify account links
 - **LastfmUser** - Last.fm account links
-- **Playlist** - Custom user playlists
+- **Playlist** - Custom user playlists (with collaboration and sharing features)
 - **Analytics** - Bot usage statistics
+- **UserStats** - User listening statistics
+- **Track** - Track analytics and metadata
+- **Achievement** - User achievements
+- **Recommendation** - Music recommendations
+
+### Database Features
+- **Query Optimization** - Indexed queries for better performance
+- **Batch Operations** - Efficient bulk insert/update/delete operations
+- **Performance Monitoring** - Automatic tracking of slow queries
+- **Connection Pooling** - Optimized connection management
 
 ## 🔄 Event Handlers
 
@@ -259,6 +319,12 @@ Organized by type:
 - **Player Events** - trackStart, trackEnd, queueEnd
 - **Node Events** - nodeReady, nodeError
 - **Interaction Events** - Commands, buttons, modals
+
+### Event System Features
+- **Event Middleware** - Logging, metrics, and replay middleware
+- **Event Metrics** - Track event firing counts and error rates
+- **Event Replay** - Replay events for debugging (stores last 1000 events)
+- **Error Tracking** - Automatic error tracking for all events
 
 ## 🌍 Supported Languages
 
@@ -281,22 +347,28 @@ Organized by type:
 - 🇨🇳 Chinese (Simplified & Traditional)
 - 🇳🇱 Dutch
 
-## 📝 Logging
+## 📝 Logging & Monitoring
 
-The bot provides comprehensive logging:
+The bot provides comprehensive logging and monitoring:
 - **Console Logging** - Real-time output with color coding
 - **File Logging** - Persistent logs in `logs/` directory
-- **Error Tracking** - Detailed error information
+- **Error Tracking** - Detailed error information with context
 - **Activity Tracking** - Command usage and events
+- **Memory Monitoring** - Automatic memory usage tracking and leak detection
+- **Performance Metrics** - Database query performance and event metrics
+- **Bot Status Reporting** - Optional status reporting to external API
 
 ## 🛡️ Security
 
 - **Token Protection** - All credentials stored in `.env`
 - **Rate Limiting** - Built-in Discord rate limit handling
 - **Permission Verification** - Server and user permission checks
-- **Input Validation** - Sanitized command inputs
+- **Input Validation** - Sanitized command inputs with Zod validation
 - **HTTPS Support** - SSL certificates for OAuth redirects
 - **Secure OAuth** - No sensitive data exposed to users
+- **SSL Certificate Validation** - Configurable SSL validation (defaults to secure)
+- **Error Handling** - Comprehensive error handling prevents information leakage
+- **Type Safety** - Strong TypeScript typing reduces runtime errors
 
 ## 🐛 Troubleshooting
 

@@ -7,6 +7,10 @@ import {
 	CommunityPlaylist,
 	UserIdentity,
 } from "./models";
+import Logger from "../structures/Logger";
+import { withDatabaseOperation } from "./dbHelpers";
+
+const logger = new Logger();
 
 export interface IAnalyticsService {
 	trackPlay(
@@ -17,12 +21,12 @@ export interface IAnalyticsService {
 		duration: number,
 		genre?: string
 	): Promise<void>;
-	getUserStats(userId: string): Promise<any>;
-	getGuildStats(guildId: string): Promise<any>;
-	getTopTracks(guildId: string, limit?: number): Promise<any[]>;
-	getTopArtists(guildId: string, limit?: number): Promise<any[]>;
-	getTopGenres(guildId: string, limit?: number): Promise<any[]>;
-	getLeaderboard(guildId: string, type: string): Promise<any[]>;
+	getUserStats(userId: string): Promise<unknown>;
+	getGuildStats(guildId: string): Promise<unknown>;
+	getTopTracks(guildId: string, limit?: number): Promise<unknown[]>;
+	getTopArtists(guildId: string, limit?: number): Promise<unknown[]>;
+	getTopGenres(guildId: string, limit?: number): Promise<unknown[]>;
+	getLeaderboard(guildId: string, type: string): Promise<unknown[]>;
 	addAchievement(
 		userId: string,
 		guildId: string,
@@ -31,24 +35,24 @@ export interface IAnalyticsService {
 		description: string,
 		icon?: string
 	): Promise<void>;
-	getAchievements(userId: string, guildId: string): Promise<any>;
+	getAchievements(userId: string, guildId: string): Promise<unknown>;
 	generateRecommendations(
 		userId: string,
 		guildId: string,
-		queue: any[]
-	): Promise<any[]>;
+		queue: unknown[]
+	): Promise<unknown[]>;
 	// New methods for advanced features
-	getLeaderboardByMetric(guildId: string, metric: 'hours' | 'artists' | 'genres'): Promise<any[]>;
-	compareUserStats(userId1: string, userId2: string): Promise<any>;
-	logActivity(guildId: string, userId: string, eventType: string, data: any): Promise<void>;
-	getActivityFeed(guildId: string, limit?: number): Promise<any[]>;
-	createCommunityPlaylist(guildId: string, name: string, createdBy: string, description?: string): Promise<any>;
+	getLeaderboardByMetric(guildId: string, metric: 'hours' | 'artists' | 'genres'): Promise<unknown[]>;
+	compareUserStats(userId1: string, userId2: string): Promise<unknown>;
+	logActivity(guildId: string, userId: string, eventType: string, data: unknown): Promise<void>;
+	getActivityFeed(guildId: string, limit?: number): Promise<unknown[]>;
+	createCommunityPlaylist(guildId: string, name: string, createdBy: string, description?: string): Promise<unknown>;
 	addTrackToPlaylist(playlistId: string, track: string, artist: string, addedBy: string): Promise<void>;
-	getCommunityPlaylists(guildId: string): Promise<any[]>;
+	getCommunityPlaylists(guildId: string): Promise<unknown[]>;
 	// User identity linking
 	linkUserIdentity(discordId: string, dashboardUserId: string, username?: string, avatar?: string): Promise<void>;
-	getUserIdentity(discordId: string): Promise<any>;
-	getOrCreateUserIdentity(discordId: string, dashboardUserId: string): Promise<any>;
+	getUserIdentity(discordId: string): Promise<unknown>;
+	getOrCreateUserIdentity(discordId: string, dashboardUserId: string): Promise<unknown>;
 	// Spotify tracking
 	trackSpotifyPlay(userId: string, guildId: string, track: string, artist: string, album: string, durationMs: number): Promise<void>;
 }
@@ -62,22 +66,25 @@ export class AnalyticsService implements IAnalyticsService {
 		duration: number,
 		genre?: string
 	): Promise<void> {
-		try {
-			console.log(`[Analytics] Tracking play: ${userId} - ${track} by ${artist}`);
-			
-			// Update user stats
-			const userStats = await UserStats.findOneAndUpdate(
-				{ userId },
-				{
-					$inc: {
-						totalTracksPlayed: 1,
-						totalTimeListened: duration,
+		return withDatabaseOperation(
+			async () => {
+				logger.debug(`[Analytics] Tracking play: ${userId} - ${track} by ${artist}`);
+
+				// Update user stats
+				const userStats = await UserStats.findOneAndUpdate(
+					{ userId },
+					{
+						$inc: {
+							totalTracksPlayed: 1,
+							totalTimeListened: duration,
+						},
+						$set: { lastListenedAt: new Date() },
 					},
-					$set: { lastListenedAt: new Date() },
-				},
-				{ upsert: true, new: true }
-			);
-			console.log(`[Analytics] Updated user stats. Total tracks: ${userStats?.totalTracksPlayed}`);
+					{ upsert: true, new: true },
+				);
+				logger.debug(
+					`[Analytics] Updated user stats. Total tracks: ${userStats?.totalTracksPlayed}`,
+				);
 
 			// Update guild stats
 			await GuildStats.findOneAndUpdate(
@@ -105,105 +112,172 @@ export class AnalyticsService implements IAnalyticsService {
 				{ $inc: { "peakHours.$.plays": 1 } }
 			);
 
-			// Log activity
-			await this.logActivity(guildId, userId, 'track_play', { track, artist });
-			
-			// Check and unlock achievements
-			if (userStats) {
-				const totalTracks = (userStats.totalTracksPlayed || 0) + 1;
-				const totalTimeMs = (userStats.totalTimeListened || 0) + duration;
-				const totalTimeHours = totalTimeMs / (1000 * 60 * 60);
-				
-				console.log(`[Analytics] Checking achievements for ${userId}: ${totalTracks} tracks, ${totalTimeHours.toFixed(2)} hours`);
-				
-				// First song achievement
-				if (totalTracks === 1) {
-					console.log(`[Analytics] Unlocking first_song for ${userId}`);
-					await this.addAchievement(userId, guildId, 'first_song', 'First Song', 'Play your first song', '🎵');
-					await this.logActivity(guildId, userId, 'achievement_unlock', { achievement: 'first_song' });
+				// Log activity
+				await this.logActivity(guildId, userId, "track_play", { track, artist });
+
+				// Check and unlock achievements
+				if (userStats) {
+					const totalTracks = (userStats.totalTracksPlayed || 0) + 1;
+					const totalTimeMs = (userStats.totalTimeListened || 0) + duration;
+					const totalTimeHours = totalTimeMs / (1000 * 60 * 60);
+
+					logger.debug(
+						`[Analytics] Checking achievements for ${userId}: ${totalTracks} tracks, ${totalTimeHours.toFixed(2)} hours`,
+					);
+
+					// First song achievement
+					if (totalTracks === 1) {
+						logger.info(`[Analytics] Unlocking first_song for ${userId}`);
+						await this.addAchievement(
+							userId,
+							guildId,
+							"first_song",
+							"First Song",
+							"Play your first song",
+							"🎵",
+						);
+						await this.logActivity(guildId, userId, "achievement_unlock", {
+							achievement: "first_song",
+						});
+					}
+					// 10 songs achievement
+					if (totalTracks === 10) {
+						logger.info(`[Analytics] Unlocking ten_songs for ${userId}`);
+						await this.addAchievement(
+							userId,
+							guildId,
+							"ten_songs",
+							"Starter",
+							"Play 10 songs",
+							"🎶",
+						);
+						await this.logActivity(guildId, userId, "achievement_unlock", {
+							achievement: "ten_songs",
+						});
+					}
+					// 100 songs achievement
+					if (totalTracks === 100) {
+						logger.info(`[Analytics] Unlocking hundred_songs for ${userId}`);
+						await this.addAchievement(
+							userId,
+							guildId,
+							"hundred_songs",
+							"Collector",
+							"Play 100 songs",
+							"💿",
+						);
+						await this.logActivity(guildId, userId, "achievement_unlock", {
+							achievement: "hundred_songs",
+						});
+					}
+					// 1000 songs achievement
+					if (totalTracks === 1000) {
+						logger.info(`[Analytics] Unlocking thousand_songs for ${userId}`);
+						await this.addAchievement(
+							userId,
+							guildId,
+							"thousand_songs",
+							"Master",
+							"Play 1000 songs",
+							"👑",
+						);
+						await this.logActivity(guildId, userId, "achievement_unlock", {
+							achievement: "thousand_songs",
+						});
+					}
+					// 1 hour listening achievement
+					if (
+						totalTimeHours >= 1 &&
+						(userStats.totalTimeListened || 0) < 1000 * 60 * 60
+					) {
+						logger.info(`[Analytics] Unlocking hour_listening for ${userId}`);
+						await this.addAchievement(
+							userId,
+							guildId,
+							"hour_listening",
+							"Hour Listener",
+							"Listen for 1 hour",
+							"⏰",
+						);
+						await this.logActivity(guildId, userId, "milestone", {
+							description: "Reached 1 hour of listening",
+						});
+					}
+					// 24 hour listening achievement
+					if (
+						totalTimeHours >= 24 &&
+						(userStats.totalTimeListened || 0) < 24 * 1000 * 60 * 60
+					) {
+						logger.info(`[Analytics] Unlocking day_listening for ${userId}`);
+						await this.addAchievement(
+							userId,
+							guildId,
+							"day_listening",
+							"Day Listener",
+							"Listen for 24 hours",
+							"📅",
+						);
+						await this.logActivity(guildId, userId, "milestone", {
+							description: "Reached 24 hours of listening",
+						});
+					}
 				}
-				// 10 songs achievement
-				if (totalTracks === 10) {
-					console.log(`[Analytics] Unlocking ten_songs for ${userId}`);
-					await this.addAchievement(userId, guildId, 'ten_songs', 'Starter', 'Play 10 songs', '🎶');
-					await this.logActivity(guildId, userId, 'achievement_unlock', { achievement: 'ten_songs' });
-				}
-				// 100 songs achievement
-				if (totalTracks === 100) {
-					console.log(`[Analytics] Unlocking hundred_songs for ${userId}`);
-					await this.addAchievement(userId, guildId, 'hundred_songs', 'Collector', 'Play 100 songs', '💿');
-					await this.logActivity(guildId, userId, 'achievement_unlock', { achievement: 'hundred_songs' });
-				}
-				// 1000 songs achievement
-				if (totalTracks === 1000) {
-					console.log(`[Analytics] Unlocking thousand_songs for ${userId}`);
-					await this.addAchievement(userId, guildId, 'thousand_songs', 'Master', 'Play 1000 songs', '👑');
-					await this.logActivity(guildId, userId, 'achievement_unlock', { achievement: 'thousand_songs' });
-				}
-				// 1 hour listening achievement
-				if (totalTimeHours >= 1 && (userStats.totalTimeListened || 0) < 1000 * 60 * 60) {
-					console.log(`[Analytics] Unlocking hour_listening for ${userId}`);
-					await this.addAchievement(userId, guildId, 'hour_listening', 'Hour Listener', 'Listen for 1 hour', '⏰');
-					await this.logActivity(guildId, userId, 'milestone', { description: 'Reached 1 hour of listening' });
-				}
-				// 24 hour listening achievement
-				if (totalTimeHours >= 24 && (userStats.totalTimeListened || 0) < 24 * 1000 * 60 * 60) {
-					console.log(`[Analytics] Unlocking day_listening for ${userId}`);
-					await this.addAchievement(userId, guildId, 'day_listening', 'Day Listener', 'Listen for 24 hours', '📅');
-					await this.logActivity(guildId, userId, 'milestone', { description: 'Reached 24 hours of listening' });
-				}
-			}
-		} catch (error) {
-			console.error("Error tracking play:", error);
-		}
+			},
+			"track_play",
+		);
 	}
 
 	async getUserStats(userId: string): Promise<any> {
-		try {
-			return await UserStats.findOne({ userId });
-		} catch (error) {
-			console.error("Error getting user stats:", error);
-			return null;
-		}
+		return withDatabaseOperation(
+			async () => {
+				return await UserStats.findOne({ userId });
+			},
+			"get_user_stats",
+			null,
+		);
 	}
 
 	async getGuildStats(guildId: string): Promise<any> {
-		try {
-			return await GuildStats.findOne({ guildId });
-		} catch (error) {
-			console.error("Error getting guild stats:", error);
-			return null;
-		}
+		return withDatabaseOperation(
+			async () => {
+				return await GuildStats.findOne({ guildId });
+			},
+			"get_guild_stats",
+			null,
+		);
 	}
 
 	async getTopTracks(guildId: string, limit = 10): Promise<any[]> {
-		try {
-			const stats = await GuildStats.findOne({ guildId });
-			return stats?.topTracks.slice(0, limit) || [];
-		} catch (error) {
-			console.error("Error getting top tracks:", error);
-			return [];
-		}
+		return withDatabaseOperation(
+			async () => {
+				const stats = await GuildStats.findOne({ guildId });
+				return stats?.topTracks.slice(0, limit) || [];
+			},
+			"get_top_tracks",
+			[],
+		);
 	}
 
 	async getTopArtists(guildId: string, limit = 10): Promise<any[]> {
-		try {
-			const stats = await GuildStats.findOne({ guildId });
-			return stats?.topArtists.slice(0, limit) || [];
-		} catch (error) {
-			console.error("Error getting top artists:", error);
-			return [];
-		}
+		return withDatabaseOperation(
+			async () => {
+				const stats = await GuildStats.findOne({ guildId });
+				return stats?.topArtists.slice(0, limit) || [];
+			},
+			"get_top_artists",
+			[],
+		);
 	}
 
 	async getTopGenres(guildId: string, limit = 10): Promise<any[]> {
-		try {
-			const stats = await GuildStats.findOne({ guildId });
-			return stats?.topGenres.slice(0, limit) || [];
-		} catch (error) {
-			console.error("Error getting top genres:", error);
-			return [];
-		}
+		return withDatabaseOperation(
+			async () => {
+				const stats = await GuildStats.findOne({ guildId });
+				return stats?.topGenres.slice(0, limit) || [];
+			},
+			"get_top_genres",
+			[],
+		);
 	}
 
 	async getLeaderboard(_guildId: string, type: string): Promise<any[]> {
@@ -250,7 +324,7 @@ export class AnalyticsService implements IAnalyticsService {
 			}
 			return [];
 		} catch (error) {
-			console.error("Error getting leaderboard:", error);
+			logger.error("[Analytics] Error getting leaderboard:", error);
 			return [];
 		}
 	}

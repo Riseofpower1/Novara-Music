@@ -24,12 +24,17 @@ import LavalinkClient from "./LavalinkClient";
 import Logger from "./Logger";
 import type { Command } from "./index";
 import { BotStatusReporter } from "../utils/BotStatusReporter";
+import { CooldownManager } from "../utils/cooldownManager";
+import { MemoryManager } from "../utils/memoryManager";
 
 export default class Lavamusic extends Client {
 	public commands: Collection<string, Command> = new Collection();
-	public aliases: Collection<string, any> = new Collection();
+	public aliases: Collection<string, string> = new Collection();
+	public events: Collection<string, import("./Event").default> = new Collection(); // Event handlers for replay
 	public db = new ServerData();
-	public cooldown: Collection<string, any> = new Collection();
+	public cooldown: Collection<string, any> = new Collection(); // Legacy - kept for backward compatibility
+	public cooldownManager: CooldownManager = new CooldownManager(); // New enhanced cooldown manager
+	public memoryManager: MemoryManager = new MemoryManager(this); // Memory management
 	public config = config;
 	public logger: Logger = new Logger();
 	public readonly emoji = config.emoji;
@@ -39,22 +44,80 @@ export default class Lavamusic extends Client {
 	public env: typeof env = env;
 	public manager!: LavalinkClient;
 	public rest = new REST({ version: "10" }).setToken(env.TOKEN ?? "");
+	// Event system enhancements
+	public eventMetrics?: Map<string, number> = new Map(); // Event firing counts
+	public eventErrors?: Map<string, number> = new Map(); // Event error counts
+	public eventLastFired?: Map<string, number> = new Map(); // Last firing timestamp
+	public eventReplayBuffer?: import("../utils/eventReplay").EventReplayEntry[] = []; // Event replay buffer
 	public embed(): EmbedBuilder {
 		return new EmbedBuilder();
 	}
 
 	public async start(token: string): Promise<void> {
-		initI18n();
-		// Start OAuth redirect handler (for Spotify/Last.fm callbacks)
-		const { startOAuthHandler } = await import("../oauth/redirectHandler");
-		startOAuthHandler();
-		this.manager = new LavalinkClient(this);
-		await this.loadCommands();
-		this.logger.info("Successfully loaded commands!");
-		await this.loadEvents();
-		this.logger.info("Successfully loaded events!");
-		loadPlugins(this);
+		const { withStartupErrorBoundary } = await import("../utils/errors");
+
+		// Initialize i18n with error boundary
+		await withStartupErrorBoundary(
+			async () => {
+				initI18n();
+			},
+			"i18n_initialization",
+			this,
+		);
+
+		// Start OAuth redirect handler with error boundary
+		await withStartupErrorBoundary(
+			async () => {
+				const { startOAuthHandler } = await import("../oauth/redirectHandler");
+				startOAuthHandler();
+			},
+			"oauth_handler_startup",
+			this,
+		);
+
+		// Initialize Lavalink client with error boundary
+		await withStartupErrorBoundary(
+			async () => {
+				this.manager = new LavalinkClient(this);
+			},
+			"lavalink_client_initialization",
+			this,
+		);
+
+		// Load commands with error boundary
+		await withStartupErrorBoundary(
+			async () => {
+				await this.loadCommands();
+				this.logger.info("Successfully loaded commands!");
+			},
+			"load_commands",
+			this,
+		);
+
+		// Load events with error boundary
+		await withStartupErrorBoundary(
+			async () => {
+				await this.loadEvents();
+				this.logger.info("Successfully loaded events!");
+			},
+			"load_events",
+			this,
+		);
+
+		// Load plugins with error boundary
+		await withStartupErrorBoundary(
+			async () => {
+				loadPlugins(this);
+			},
+			"load_plugins",
+			this,
+		);
+
+		// Login to Discord (critical - will throw if fails)
 		await this.login(token);
+
+		// Start memory management
+		this.memoryManager.start();
 
 		// Set up bot status reporting
 		let isFirstReady = true;
@@ -164,7 +227,7 @@ export default class Lavamusic extends Client {
 
 				this.commands.set(command.name, command);
 				command.aliases.forEach((alias: string) => {
-					this.aliases.set(alias, command.name as any);
+					this.aliases.set(alias, command.name);
 				});
 
 				if (command.slashCommand) {
@@ -177,18 +240,19 @@ export default class Lavamusic extends Client {
 							Array.isArray(command.permissions.user) &&
 							command.permissions.user.length > 0
 								? PermissionsBitField.resolve(
-										command.permissions.user as any,
+										command.permissions.user as (string | bigint)[] as import("discord.js").PermissionResolvable,
 									).toString()
 								: null,
 						name_localizations: null,
 						description_localizations: null,
 					};
 
-					const localizations: { name: any[]; description: string[] }[] = [];
-					i18n.getLocales().map((locale: any) => {
-						localizations.push(
-							localization(locale, command.name, command.description.content),
-						);
+					const localizations: Array<{ name: [Locale, string]; description: [Locale, string] }> = [];
+					i18n.getLocales().map((locale: string) => {
+						if (locale in Locale) {
+							const loc = localization(locale as keyof typeof Locale, command.name, command.description.content);
+							localizations.push(loc as { name: [Locale, string]; description: [Locale, string] });
+						}
 					});
 
 					for (const localization of localizations) {
@@ -206,14 +270,15 @@ export default class Lavamusic extends Client {
 
 					if (command.options.length > 0) {
 						command.options.map((option) => {
-							const optionsLocalizations: {
-								name: any[];
-								description: string[];
-							}[] = [];
-							i18n.getLocales().map((locale: any) => {
-								optionsLocalizations.push(
-									localization(locale, option.name, option.description),
-								);
+							const optionsLocalizations: Array<{
+								name: [Locale, string];
+								description: [Locale, string];
+							}> = [];
+							i18n.getLocales().map((locale: string) => {
+								if (locale in Locale) {
+									const loc = localization(locale as keyof typeof Locale, option.name, option.description);
+									optionsLocalizations.push(loc as { name: [Locale, string]; description: [Locale, string] });
+								}
 							});
 
 							for (const localization of optionsLocalizations) {
@@ -234,18 +299,19 @@ export default class Lavamusic extends Client {
 						data.options?.map((option) => {
 							if ("options" in option && option.options!.length > 0) {
 								option.options?.map((subOption) => {
-									const subOptionsLocalizations: {
-										name: any[];
-										description: string[];
-									}[] = [];
-									i18n.getLocales().map((locale: any) => {
-										subOptionsLocalizations.push(
-											localization(
-												locale,
+									const subOptionsLocalizations: Array<{
+										name: [Locale, string];
+										description: [Locale, string];
+									}> = [];
+									i18n.getLocales().map((locale: string) => {
+										if (locale in Locale) {
+											const loc = localization(
+												locale as keyof typeof Locale,
 												subOption.name,
 												subOption.description,
-											),
-										);
+											);
+											subOptionsLocalizations.push(loc as { name: [Locale, string]; description: [Locale, string] });
+										}
 									});
 
 									for (const localization of subOptionsLocalizations) {
@@ -302,15 +368,63 @@ export default class Lavamusic extends Client {
 					path.join(process.cwd(), "dist", "events", dir, file),
 				);
 				const event = new eventModule.default(this, file);
+				
+				// Store event for replay functionality
+				this.events.set(event.name, event);
+
+				// Wrap event.run with middleware
+				const wrappedRun = async (...args: unknown[]) => {
+					const { executeEventMiddleware, defaultEventMiddleware } = await import("../utils/eventMiddleware");
+					
+					try {
+						// Execute middleware
+						const middlewareResult = await executeEventMiddleware(
+							defaultEventMiddleware,
+							{
+								event,
+								client: this,
+								eventName: event.name,
+								args,
+								timestamp: Date.now(),
+							},
+						);
+						
+						if (!middlewareResult.success && middlewareResult.stop) {
+							return;
+						}
+						
+						// Update last fired timestamp
+						if (this.eventLastFired) {
+							this.eventLastFired.set(event.name, Date.now());
+						}
+						
+						// Run the actual event handler
+						await event.run(...args);
+					} catch (error) {
+						// Track errors
+						if (this.eventErrors) {
+							const currentErrors = this.eventErrors.get(event.name) || 0;
+							this.eventErrors.set(event.name, currentErrors + 1);
+						}
+						
+						// Handle error
+						const { handleError } = await import("../utils/errors");
+						handleError(error, {
+							client: this,
+							additionalContext: {
+								operation: "event_execution",
+								eventName: event.name,
+							},
+						});
+					}
+				};
 
 				if (dir === "player") {
-					this.manager.on(event.name, (...args: any) => event.run(...args));
+					this.manager.on(event.name, wrappedRun);
 				} else if (dir === "node") {
-					this.manager.nodeManager.on(event.name, (...args: any) =>
-						event.run(...args),
-					);
+					this.manager.nodeManager.on(event.name, wrappedRun);
 				} else {
-					this.on(event.name, (...args) => event.run(...args));
+					this.on(event.name, wrappedRun);
 				}
 			}
 		}

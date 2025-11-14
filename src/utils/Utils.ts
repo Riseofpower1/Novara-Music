@@ -23,6 +23,38 @@ export class Utils {
 		return `${Math.floor(ms / dayMs)}d ${Math.floor((ms % dayMs) / hourMs)}h`;
 	}
 
+	/**
+	 * Formats uptime from milliseconds or string to "Xh Xm Xs" format
+	 * @param uptime - Uptime in milliseconds (number or string) or formatted string
+	 * @returns Formatted uptime string (e.g., "2h 30m 15s") or "N/A" if invalid
+	 */
+	public static formatUptime(uptime: string | number | undefined): string {
+		if (!uptime || uptime === "99.9%") {
+			return "N/A";
+		}
+
+		// If it's already formatted or not a number, return as is (unless it's a percentage)
+		if (typeof uptime === "string" && !/^\d+$/.test(uptime)) {
+			return uptime;
+		}
+
+		// Parse as milliseconds
+		const ms = typeof uptime === "number" ? uptime : Number.parseInt(uptime, 10);
+		if (Number.isNaN(ms) || ms < 0) {
+			return "N/A";
+		}
+
+		const s = Math.floor((ms / 1000) % 60);
+		const m = Math.floor((ms / (1000 * 60)) % 60);
+		const h = Math.floor((ms / (1000 * 60 * 60)) % 24);
+		const d = Math.floor(ms / (1000 * 60 * 60 * 24));
+
+		if (d > 0) {
+			return `${d}d ${h}h ${m}m`;
+		}
+		return `${h}h ${m}m ${s}s`;
+	}
+
 	public static updateStatus(client: Lavamusic, guildId?: string): void {
 		const { user } = client;
 		if (user && client.env.GUILD_ID && guildId === client.env.GUILD_ID) {

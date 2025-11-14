@@ -35,13 +35,13 @@ export { i18n };
 export function T(
 	locale: string,
 	text: string | i18n.TranslateOptions,
-	...params: any
+	...params: unknown[]
 ) {
 	i18n.setLocale(locale);
 	return i18n.__mf(text, ...params);
 }
 
-export function localization(lan: keyof typeof Locale, name: any, desc: any) {
+export function localization(lan: keyof typeof Locale, name: string, desc: string) {
 	return {
 		name: [Locale[lan], name],
 		description: [Locale[lan], T(lan, desc)],

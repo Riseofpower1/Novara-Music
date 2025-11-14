@@ -1,4 +1,8 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class GetPlaylists extends Command {
 	constructor(client: Lavamusic) {
@@ -13,22 +17,8 @@ export default class GetPlaylists extends Command {
 			aliases: ["lst"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{
@@ -44,29 +34,28 @@ export default class GetPlaylists extends Command {
 	public async run(client: Lavamusic, ctx: Context): Promise<any> {
 		try {
 			let userId: string | undefined;
-			let targetUser = ctx.args[0];
+			let targetUser: unknown = ctx.args[0];
 
-			if (targetUser?.startsWith("<@") && targetUser.endsWith(">")) {
-				targetUser = targetUser.slice(2, -1);
-
-				if (targetUser.startsWith("!")) {
-					targetUser = targetUser.slice(1);
-				}
-
-				targetUser = await client.users.fetch(targetUser);
-				userId = targetUser.id;
-			} else if (targetUser) {
+			if (typeof targetUser === "string" && targetUser.startsWith("<@") && targetUser.endsWith(">")) {
+				const userIdStr = targetUser.slice(2, -1).replace(/^!/, "");
+				const fetchedUser = await client.users.fetch(userIdStr);
+				targetUser = fetchedUser;
+				userId = fetchedUser.id;
+			} else if (typeof targetUser === "string" && targetUser) {
+				const targetUserStr = targetUser;
 				try {
-					targetUser = await client.users.fetch(targetUser);
-					userId = targetUser.id;
+					const fetchedUser = await client.users.fetch(targetUserStr);
+					targetUser = fetchedUser;
+					userId = fetchedUser.id;
 				} catch (_error) {
 					const users = client.users.cache.filter(
-						(user) => user.username.toLowerCase() === targetUser.toLowerCase(),
+						(user) => user.username.toLowerCase() === targetUserStr.toLowerCase(),
 					);
 
 					if (users.size > 0) {
-						targetUser = users.first();
-						userId = targetUser?.id ?? null;
+						const foundUser = users.first();
+						targetUser = foundUser;
+						userId = foundUser?.id;
 					} else {
 						return await ctx.sendMessage({
 							embeds: [
@@ -107,8 +96,8 @@ export default class GetPlaylists extends Command {
 				});
 			}
 
-			const targetUsername = targetUser
-				? targetUser.username
+			const targetUsername = targetUser && typeof targetUser === "object" && "username" in targetUser
+				? String(targetUser.username)
 				: ctx.locale("cmd.list.messages.your");
 			return await ctx.sendMessage({
 				embeds: [

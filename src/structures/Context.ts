@@ -36,11 +36,11 @@ export default class Context {
 		| GuildMember
 		| APIInteractionGuildMember
 		| null;
-	public args: any[];
-	public msg: any;
+	public args: unknown[];
+	public msg: Message | null = null;
 	public guildLocale: string | undefined;
 
-	constructor(ctx: ChatInputCommandInteraction | Message, args: any[]) {
+	constructor(ctx: ChatInputCommandInteraction | Message, args: unknown[]) {
 		this.ctx = ctx;
 		this.interaction = ctx instanceof ChatInputCommandInteraction ? ctx : null;
 		this.message = ctx instanceof Message ? ctx : null;
@@ -69,9 +69,14 @@ export default class Context {
 		return this.ctx instanceof ChatInputCommandInteraction;
 	}
 
-	public setArgs(args: any[]): void {
+	public setArgs(args: unknown[]): void {
 		this.args = this.isInteraction
-			? args.map((arg: { value: any }) => arg.value)
+			? (args as Array<{ value: unknown }>).map((arg: { value: unknown }) => {
+					if (typeof arg === "object" && arg !== null && "value" in arg) {
+						return (arg as { value: unknown }).value;
+					}
+					return arg;
+				})
 			: args;
 	}
 
@@ -81,17 +86,20 @@ export default class Context {
 			| MessagePayload
 			| MessageCreateOptions
 			| InteractionReplyOptions,
-	): Promise<Message> {
+	): Promise<Message | null> {
 		if (this.isInteraction) {
 			if (typeof content === "string" || isInteractionReplyOptions(content)) {
-				this.msg = await this.interaction?.reply(content);
+				await this.interaction?.reply(content);
+				this.msg = await this.interaction?.fetchReply() || null;
 				return this.msg;
 			}
 		} else if (typeof content === "string" || isMessagePayload(content)) {
-			this.msg = await (this.message?.channel as TextChannel).send(content);
-			return this.msg;
+			if (this.message) {
+				this.msg = await (this.message.channel as TextChannel).send(content);
+				return this.msg;
+			}
 		}
-		return this.msg;
+		return null;
 	}
 
 	public async editMessage(
@@ -100,16 +108,17 @@ export default class Context {
 			| MessagePayload
 			| InteractionEditReplyOptions
 			| MessageEditOptions,
-	): Promise<Message> {
+	): Promise<Message | null> {
 		if (this.isInteraction && this.msg) {
-			this.msg = await this.interaction?.editReply(content);
+			await this.interaction?.editReply(content);
+			this.msg = await this.interaction?.fetchReply() || null;
 			return this.msg;
 		}
 		if (this.msg) {
 			this.msg = await this.msg.edit(content);
 			return this.msg;
 		}
-		return this.msg;
+		return null;
 	}
 
 	public async sendDeferMessage(
@@ -125,7 +134,7 @@ export default class Context {
 		return this.msg;
 	}
 
-	public locale(key: string, ...args: any) {
+	public locale(key: string, ...args: unknown[]) {
 		if (!this.guildLocale)
 			this.guildLocale = env.DEFAULT_LANGUAGE || "EnglishUS";
 		return T(this.guildLocale, key, ...args);

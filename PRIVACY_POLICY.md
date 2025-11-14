@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last Updated:** November 11, 2025
+**Last Updated:** November 14, 2025
 
 ## 1. Introduction
 
@@ -32,6 +32,9 @@ When you voluntarily link accounts:
 - Bot performance metrics
 - Error logs and debugging information
 - Server configuration preferences
+- Event firing counts and error rates
+- Database query performance metrics
+- Memory usage statistics (for bot optimization only)
 
 ## 3. How We Use Your Information
 
@@ -42,6 +45,9 @@ We use collected information for:
 - **Analytics**: Understanding bot usage patterns and improving features
 - **Error Handling**: Debugging issues and improving stability
 - **Security**: Protecting against abuse and unauthorized access
+- **Performance Optimization**: Monitoring database queries and system performance
+- **Memory Management**: Optimizing bot memory usage (no personal data collected)
+- **Event Tracking**: Tracking event metrics for system reliability
 
 ## 4. Data Storage and Security
 
@@ -56,6 +62,9 @@ We use collected information for:
 - Rate limiting to prevent abuse
 - Regular security reviews
 - No sensitive data logged in plain text
+- Configurable SSL certificate validation (defaults to secure)
+- Comprehensive error handling to prevent information leakage
+- Type-safe code to reduce security vulnerabilities
 
 ### 4.3 Data Retention
 - User data is retained while the bot is active on your server
@@ -83,7 +92,16 @@ When you link your Last.fm account:
 
 ### 5.4 MongoDB
 - Your data is stored on MongoDB
+- Database queries are optimized with indexing for performance
+- Query performance is monitored (no personal data in metrics)
 - See [MongoDB Privacy Policy](https://www.mongodb.com/legal/privacy-policy)
+
+### 5.5 Bot Status Reporting (Optional)
+If configured, the bot may report status information to an external API:
+- Bot uptime and performance metrics
+- Server count and user count (aggregated)
+- System resource usage (memory, CPU)
+- No personal user data is included in status reports
 
 ## 6. Discord.js Integration
 
@@ -118,6 +136,13 @@ We **do not sell** your personal information. We may share information with:
 ## 9. Cookies and Tracking
 
 Novara Music does not use cookies or tracking technologies. Our OAuth redirect pages may use basic session data for authentication purposes only.
+
+We do track:
+- **Event Metrics**: Event firing counts and error rates (for system reliability)
+- **Performance Metrics**: Database query performance and response times (no personal data)
+- **Memory Metrics**: Bot memory usage for optimization (no personal data)
+
+All metrics are aggregated and do not contain personally identifiable information.
 
 ## 10. Children's Privacy
 

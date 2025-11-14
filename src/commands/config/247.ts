@@ -1,5 +1,9 @@
 import type { GuildMember } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	VOICE_PLAYER_CONFIG,
+	createMusicCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class _247 extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +18,8 @@ export default class _247 extends Command {
 			aliases: ["stay"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: true,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: ["ManageGuild"],
-			},
+			player: VOICE_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissions(["ManageGuild"]),
 			slashCommand: true,
 			options: [],
 		});

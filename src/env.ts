@@ -81,16 +81,25 @@ const envSchema = z.object({
 	SPOTIFY_CLIENT_SECRET: z.string().optional(),
 	SPOTIFY_REDIRECT_URI: z.string().optional(),
 	WEB_URL: z.string().optional(),
+	BOT_STATUS_URL: z.string().optional(),
+	BOT_STATUS_TOKEN: z.string().optional(),
+	BOT_STATUS_CHANNEL_ID: z.string().optional(),
+	BOT_STATUS_INSECURE_SSL: z.preprocess(
+		(val) => val === "true",
+		z.boolean().default(false),
+	),
 });
 
 type Env = z.infer<typeof envSchema>;
 
 export const env: Env = envSchema.parse(process.env);
 
-for (const key in env) {
-	if (!(key in env)) {
+// Validate required environment variables
+const requiredKeys: (keyof Env)[] = ["TOKEN", "CLIENT_ID", "NODES"];
+for (const key of requiredKeys) {
+	if (!env[key]) {
 		throw new Error(
-			`Missing env variable: ${key}. Please check the .env file and try again.`,
+			`Missing required env variable: ${key}. Please check the .env file and try again.`,
 		);
 	}
 }

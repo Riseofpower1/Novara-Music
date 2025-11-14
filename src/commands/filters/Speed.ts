@@ -3,6 +3,10 @@ import {
 	type Context,
 	type Lavamusic,
 } from "../../structures/index.js";
+import {
+	ACTIVE_DJ_PLAYER_CONFIG,
+	createMusicCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class Speed extends Command {
 	constructor(client: Lavamusic) {
@@ -17,22 +21,8 @@ export default class Speed extends Command {
 			aliases: ["spd"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: true,
-				dj: true,
-				active: true,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: ACTIVE_DJ_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{

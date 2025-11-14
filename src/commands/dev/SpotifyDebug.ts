@@ -1,6 +1,10 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { EmbedBuilder } from "discord.js";
 import { env } from "../../env";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class SpotifyDebug extends Command {
 	constructor(client: Lavamusic) {
@@ -15,22 +19,8 @@ export default class SpotifyDebug extends Command {
 			aliases: ["spdebug"],
 			cooldown: 5,
 			args: false,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: true, // Owner only
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions([], true),
 			slashCommand: true,
 			options: [],
 		});

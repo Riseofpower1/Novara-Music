@@ -1,5 +1,9 @@
 import { ChannelType, type TextChannel } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class GuildLeave extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +18,8 @@ export default class GuildLeave extends Command {
 			aliases: ["gl"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: true,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions([], true),
 			slashCommand: false,
 			options: [],
 		});

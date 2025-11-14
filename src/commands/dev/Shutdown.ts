@@ -1,5 +1,9 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class Shutdown extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +18,8 @@ export default class Shutdown extends Command {
 			aliases: ["turnoff"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: true,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions([], true),
 			slashCommand: false,
 			options: [],
 		});
@@ -53,6 +43,8 @@ export default class Shutdown extends Command {
 			embeds: [shutdownEmbed],
 			components: [row],
 		});
+
+		if (!msg) return;
 
 		const filter = (i: any) =>
 			i.customId === "confirm-shutdown" && i.user.id === ctx.author?.id;

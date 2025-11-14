@@ -1,5 +1,9 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { AnalyticsService } from "../../database/analytics";
+import {
+	ACTIVE_DJ_PLAYER_CONFIG,
+	createMusicCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class Volume extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +18,8 @@ export default class Volume extends Command {
 			aliases: ["v", "vol"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: true,
-				dj: true,
-				active: true,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: ACTIVE_DJ_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{
@@ -54,13 +44,13 @@ export default class Volume extends Command {
 			return await ctx.sendMessage(
 				ctx.locale("event.message.no_music_playing"),
 			);
-		if (Number.isNaN(number) || number < 0 || number > 200) {
+		if (Number.isNaN(number) || number < 0 || number > 100) {
 			let description = "";
 			if (Number.isNaN(number))
 				description = ctx.locale("cmd.volume.messages.invalid_number");
 			else if (number < 0)
 				description = ctx.locale("cmd.volume.messages.too_low");
-			else if (number > 200)
+			else if (number > 100)
 				description = ctx.locale("cmd.volume.messages.too_high");
 
 			return await ctx.sendMessage({
@@ -74,14 +64,16 @@ export default class Volume extends Command {
 		const currentVolume = player.volume;
 
 		// Log volume change for analytics
-		const analyticsService = new AnalyticsService();
-		await analyticsService.logActivity(ctx.guild.id, ctx.author.id, "volume_changed", {
+		if (ctx.author) {
+			const analyticsService = new AnalyticsService();
+			await analyticsService.logActivity(ctx.guild.id, ctx.author.id, "volume_changed", {
 			volume: currentVolume,
 			requestedVolume: number,
 			timestamp: new Date().toISOString()
-		}).catch((err) => {
-			this.client.logger.error("Failed to log volume command:", err);
-		});
+			}).catch((err) => {
+				this.client.logger.error("Failed to log volume command:", err);
+			});
+		}
 
 		return await ctx.sendMessage({
 			embeds: [

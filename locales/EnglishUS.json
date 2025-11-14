@@ -477,7 +477,7 @@
 			"messages": {
 				"invalid_number": "Please provide a valid number.",
 				"too_low": "The volume can't be lower than 0.",
-				"too_high": "The volume can't be higher than 200. Do you want to damage your hearing or speakers? Hmmm, I don't think that's such a good idea.",
+				"too_high": "The volume can't be higher than 100. Do you want to damage your hearing or speakers? Hmmm, I don't think that's such a good idea.",
 				"set": "Set the volume to {volume}"
 			}
 		},
@@ -526,7 +526,8 @@
 				"no_playlists": "This user has no playlists.",
 				"your": "Your",
 				"playlists_title": "{username}'s Playlists",
-				"error": "An error occurred while retrieving the playlists."
+				"error": "An error occurred while retrieving the playlists.",
+				"invalid_username": "cmd.list.messages.invalid_username"
 			}
 		},
 		"load": {
@@ -679,7 +680,9 @@
 			"no_more_songs_in_queue": "There is no more song in the queue.",
 			"looping_by": "Looping by {user}",
 			"looping_queue_by": "Looping Queue by {user}",
-			"looping_off_by": "Looping Off by {user}"
+			"looping_off_by": "Looping Off by {user}",
+			"volume_changed_by": "player.trackStart.volume_changed_by",
+			"shuffled_by": "player.trackStart.shuffled_by"
 		},
 		"setupStart": {
 			"now_playing": "Now Playing",
@@ -779,5 +782,19 @@
 	},
 	"Service to unlink (spotify or lastfm)": "Service to unlink (spotify or lastfm)",
 	"Debug Spotify connection issues (Owner only)": "Debug Spotify connection issues (Owner only)",
-	"View your music achievements and progress": "View your music achievements and progress"
+	"View your music achievements and progress": "View your music achievements and progress",
+	"Move a track to a different position in the queue": "Move a track to a different position in the queue",
+	"Current position of the track (1-based)": "Current position of the track (1-based)",
+	"New position for the track (1-based)": "New position for the track (1-based)",
+	"View recently played tracks from queue history": "View recently played tracks from queue history",
+	"Export and share the current queue": "Export and share the current queue",
+	"Swap two tracks in the queue": "Swap two tracks in the queue",
+	"First track position (1-based)": "First track position (1-based)",
+	"Second track position (1-based)": "Second track position (1-based)",
+	"Export playlist to JSON format": "Export playlist to JSON format",
+	"Playlist name": "Playlist name",
+	"Import playlist from JSON format": "Import playlist from JSON format",
+	"JSON data of the playlist to import": "JSON data of the playlist to import",
+	"Overwrite existing playlist if it exists": "Overwrite existing playlist if it exists",
+	"View statistics for a playlist": "View statistics for a playlist"
 }

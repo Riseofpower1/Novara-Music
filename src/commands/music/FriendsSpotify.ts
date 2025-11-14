@@ -1,6 +1,11 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { SpotifyService } from "../../integrations/spotify";
 import { env } from "../../env";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
+import { handleError } from "../../utils/errors";
 
 export default class FriendsSpotify extends Command {
 	constructor(client: Lavamusic) {
@@ -15,22 +20,8 @@ export default class FriendsSpotify extends Command {
 			aliases: ["spfriends", "whoslisten"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions(),
 			slashCommand: true,
 			options: [],
 		});
@@ -70,7 +61,14 @@ export default class FriendsSpotify extends Command {
 						});
 					}
 				} catch (error) {
-					console.error(`Error fetching Spotify data for user ${spotifyUser.userId}:`, error);
+					handleError(error, {
+						client: this.client,
+						commandName: "friendspotify",
+						userId: spotifyUser.userId,
+						guildId: ctx.guild?.id,
+						channelId: ctx.channel?.id,
+						additionalContext: { operation: "fetch_spotify_user_data", targetUserId: spotifyUser.userId },
+					});
 				}
 			}
 
@@ -106,7 +104,14 @@ export default class FriendsSpotify extends Command {
 
 			return await ctx.sendMessage({ embeds: [embed] });
 		} catch (error) {
-			console.error("Error fetching friends Spotify data:", error);
+			handleError(error, {
+				client: this.client,
+				commandName: "friendspotify",
+				userId: ctx.author?.id,
+				guildId: ctx.guild?.id,
+				channelId: ctx.channel?.id,
+				additionalContext: { operation: "fetch_friends_spotify_data" },
+			});
 			return await ctx.sendMessage({
 				embeds: [
 					this.client

@@ -10,6 +10,10 @@ import {
 } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { LyricsLine, LyricsResult } from "lavalink-client";
+import {
+	VOICE_PLAYER_CONFIG,
+	createMusicCommandPermissionsWithExtra,
+} from "../../utils/commandHelpers";
 
 export default class Lyrics extends Command {
 	constructor(client: Lavamusic) {
@@ -24,23 +28,8 @@ export default class Lyrics extends Command {
 			aliases: ["ly"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: true,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-					"AttachFiles",
-				],
-				user: [],
-			},
+			player: VOICE_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissionsWithExtra(["AttachFiles"]),
 			slashCommand: true,
 			options: [
 				{
@@ -67,7 +56,7 @@ export default class Lyrics extends Command {
 				songQuery = songOpt.value;
 			}
 		}
-		if (!songQuery && ctx.args?.[0]) {
+		if (!songQuery && ctx.args?.[0] && typeof ctx.args[0] === "string") {
 			songQuery = ctx.args[0];
 		}
 
@@ -450,7 +439,7 @@ export default class Lyrics extends Command {
 		client: Lavamusic;
 		ctx: Context;
 		songQuery: string;
-		player?: any; // Use proper player type from lavalink-client
+		player?: import("lavalink-client").Player;
 	}) {
 		let trackTitle = "";
 		let artistName = "";

@@ -1,6 +1,10 @@
 import axios from "axios";
 import { SpotifyUser } from "../database/models";
 import { env } from "../env";
+import Logger from "../structures/Logger";
+import { APIError } from "../utils/errors";
+
+const logger = new Logger();
 
 export class SpotifyOAuthService {
 	private clientId: string;
@@ -46,9 +50,11 @@ export class SpotifyOAuthService {
 				throw new Error("Invalid authorization code format");
 			}
 
-			console.log("[Spotify OAuth] Exchanging code for token...");
-			console.log("[Spotify OAuth] Client ID:", this.clientId.substring(0, 8) + "...");
-			console.log("[Spotify OAuth] Redirect URI:", this.redirectUri);
+			logger.debug("[Spotify OAuth] Exchanging code for token...");
+			logger.debug(
+				`[Spotify OAuth] Client ID: ${this.clientId.substring(0, 8)}...`,
+			);
+			logger.debug(`[Spotify OAuth] Redirect URI: ${this.redirectUri}`);
 
 			const response = await axios.post(
 				"https://accounts.spotify.com/api/token",
@@ -70,17 +76,26 @@ export class SpotifyOAuthService {
 				throw new Error("No access token in response");
 			}
 
-			console.log("[Spotify OAuth] ✅ Token exchange successful");
+			logger.success("[Spotify OAuth] Token exchange successful");
 			return {
 				accessToken: response.data.access_token,
 				refreshToken: response.data.refresh_token || "",
 				expiresIn: response.data.expires_in || 3600,
 			};
-		} catch (error: any) {
-			const errorMsg = error.response?.data?.error || error.message;
-			const errorDescription = error.response?.data?.error_description || "";
-			console.error("[Spotify OAuth] ❌ Token exchange failed:", errorMsg, errorDescription);
-			throw new Error(`Spotify token exchange failed: ${errorMsg}`);
+		} catch (error: unknown) {
+			const axiosError = error as { response?: { data?: { error?: string; error_description?: string } }; message?: string };
+			const errorMsg = axiosError.response?.data?.error || axiosError.message || "Unknown error";
+			const errorDescription = axiosError.response?.data?.error_description || "";
+			logger.error(
+				`[Spotify OAuth] Token exchange failed: ${errorMsg}${errorDescription ? ` - ${errorDescription}` : ""}`,
+			);
+			throw new APIError(
+				`Spotify token exchange failed: ${errorMsg}`,
+				"Spotify",
+				axiosError.response ? 400 : undefined,
+				false,
+				{ errorDescription },
+			);
 		}
 	}
 

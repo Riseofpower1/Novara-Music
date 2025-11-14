@@ -1,9 +1,21 @@
+export interface UserStats {
+	totalTracksPlayed?: number;
+	totalTimeListened?: number;
+	listeningStreak?: number;
+	favoriteGenres?: unknown[];
+	favoriteArtists?: unknown[];
+	playlistsCreated?: number;
+	peakListeningHours?: number[];
+	totalPlaylistSongs?: number;
+	[key: string]: unknown;
+}
+
 export interface IAchievement {
 	id: string;
 	name: string;
 	description: string;
 	icon: string;
-	condition: (stats: any) => boolean;
+	condition: (stats: UserStats) => boolean;
 	reward?: string;
 }
 
@@ -13,100 +25,111 @@ export const ACHIEVEMENTS: Record<string, IAchievement> = {
 		name: "First Steps",
 		description: "Play your first song",
 		icon: "🎵",
-		condition: (stats) => stats.totalTracksPlayed >= 1,
+		condition: (stats) => (stats.totalTracksPlayed ?? 0) >= 1,
 	},
 	ten_songs: {
 		id: "ten_songs",
 		name: "Getting Started",
 		description: "Play 10 songs",
 		icon: "🎶",
-		condition: (stats) => stats.totalTracksPlayed >= 10,
+		condition: (stats) => (stats.totalTracksPlayed ?? 0) >= 10,
 	},
 	hundred_songs: {
 		id: "hundred_songs",
 		name: "Music Lover",
 		description: "Play 100 songs",
 		icon: "💿",
-		condition: (stats) => stats.totalTracksPlayed >= 100,
+		condition: (stats) => (stats.totalTracksPlayed ?? 0) >= 100,
 	},
 	thousand_songs: {
 		id: "thousand_songs",
 		name: "Obsessed",
 		description: "Play 1000 songs",
 		icon: "🎼",
-		condition: (stats) => stats.totalTracksPlayed >= 1000,
+		condition: (stats) => (stats.totalTracksPlayed ?? 0) >= 1000,
 	},
 	hour_listening: {
 		id: "hour_listening",
 		name: "Binge Listener",
 		description: "Listen for 1 hour straight",
 		icon: "⏱️",
-		condition: (stats) => stats.totalTimeListened >= 3600000,
+		condition: (stats) => (stats.totalTimeListened ?? 0) >= 3600000,
 	},
 	day_listening: {
 		id: "day_listening",
 		name: "Marathon Listener",
 		description: "Listen for 24 hours total",
 		icon: "🏃",
-		condition: (stats) => stats.totalTimeListened >= 86400000,
+		condition: (stats) => (stats.totalTimeListened ?? 0) >= 86400000,
 	},
 	week_streak: {
 		id: "week_streak",
 		name: "Week Warrior",
 		description: "Listen for 7 consecutive days",
 		icon: "🔥",
-		condition: (stats) => stats.listeningStreak >= 7,
+		condition: (stats) => (stats.listeningStreak ?? 0) >= 7,
 	},
 	genre_explorer: {
 		id: "genre_explorer",
 		name: "Genre Explorer",
 		description: "Listen to 10 different genres",
 		icon: "🌍",
-		condition: (stats) => stats.favoriteGenres?.length >= 10,
+		condition: (stats) => (Array.isArray(stats.favoriteGenres) ? stats.favoriteGenres.length : 0) >= 10,
 	},
 	artist_fan: {
 		id: "artist_fan",
 		name: "Fan Collector",
 		description: "Listen to 50 different artists",
 		icon: "👨‍🎤",
-		condition: (stats) => stats.favoriteArtists?.length >= 50,
+		condition: (stats) => (Array.isArray(stats.favoriteArtists) ? stats.favoriteArtists.length : 0) >= 50,
 	},
 	playlist_master: {
 		id: "playlist_master",
 		name: "Playlist Master",
 		description: "Create 5 playlists",
 		icon: "📝",
-		condition: (stats) => stats.playlistsCreated >= 5,
+		condition: (stats) => (stats.playlistsCreated ?? 0) >= 5,
 	},
 	night_owl: {
 		id: "night_owl",
 		name: "Night Owl",
 		description: "Listen most between midnight and 4 AM",
 		icon: "🌙",
-		condition: (stats) => stats.peakListeningHours?.includes(0, 1, 2, 3),
+		condition: (stats) => {
+			const hours = stats.peakListeningHours;
+			return Array.isArray(hours) && (hours.includes(0) || hours.includes(1) || hours.includes(2) || hours.includes(3));
+		},
 	},
 	early_bird: {
 		id: "early_bird",
 		name: "Early Bird",
 		description: "Listen most between 5 AM and 8 AM",
 		icon: "☀️",
-		condition: (stats) => stats.peakListeningHours?.includes(5, 6, 7),
+		condition: (stats) => {
+			const hours = stats.peakListeningHours;
+			return Array.isArray(hours) && (hours.includes(5) || hours.includes(6) || hours.includes(7));
+		},
 	},
 	collector: {
 		id: "collector",
 		name: "Collector",
 		description: "Save 100 songs to playlists",
 		icon: "📚",
-		condition: (stats) => stats.totalPlaylistSongs >= 100,
+		condition: (stats) => (stats.totalPlaylistSongs ?? 0) >= 100,
 	},
 };
 
 export class AchievementManager {
-	static checkAchievements(stats: any): string[] {
+	static checkAchievements(stats: UserStats | unknown): string[] {
 		const unlockedAchievements: string[] = [];
+		// Type guard: ensure stats is an object
+		if (typeof stats !== "object" || stats === null) {
+			return unlockedAchievements;
+		}
+		const userStats = stats as UserStats;
 
 		for (const [_key, achievement] of Object.entries(ACHIEVEMENTS)) {
-			if (achievement.condition(stats)) {
+			if (achievement.condition(userStats)) {
 				unlockedAchievements.push(achievement.id);
 			}
 		}
@@ -122,13 +145,19 @@ export class AchievementManager {
 		return Object.values(ACHIEVEMENTS);
 	}
 
-	static getAchievementProgress(stats: any, achievementId: string): number {
+	static getAchievementProgress(stats: UserStats | unknown, achievementId: string): number {
 		const achievement = ACHIEVEMENTS[achievementId];
 		if (!achievement) return 0;
 
+		// Type guard: ensure stats is an object
+		if (typeof stats !== "object" || stats === null) {
+			return 0;
+		}
+		const userStats = stats as UserStats;
+
 		// Calculate progress percentage based on condition
 		// This is simplified and can be enhanced
-		const condition = achievement.condition(stats);
+		const condition = achievement.condition(userStats);
 		return condition ? 100 : 0;
 	}
 }

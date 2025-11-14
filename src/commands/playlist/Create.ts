@@ -1,4 +1,9 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
+import { handleError } from "../../utils/errors";
 
 export default class CreatePlaylist extends Command {
 	constructor(client: Lavamusic) {
@@ -13,22 +18,8 @@ export default class CreatePlaylist extends Command {
 			aliases: ["cre"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{
@@ -87,7 +78,14 @@ export default class CreatePlaylist extends Command {
 		try {
 			await client.db.createPlaylist(ctx.author?.id!, normalizedName);
 		} catch (error) {
-			console.error("Error creating playlist:", error);
+			handleError(error, {
+				client: this.client,
+				commandName: "create",
+				userId: ctx.author?.id,
+				guildId: ctx.guild?.id,
+				channelId: ctx.channel?.id,
+				additionalContext: { operation: "create_playlist", playlistName: normalizedName },
+			});
 			return await ctx.sendMessage({
 				embeds: [
 					embed

@@ -1,5 +1,10 @@
 import type { AutocompleteInteraction } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
+import { handleError } from "../../utils/errors";
 
 export default class StealPlaylist extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +19,8 @@ export default class StealPlaylist extends Command {
 			aliases: ["st"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{
@@ -54,25 +45,25 @@ export default class StealPlaylist extends Command {
 		const playlistName = ctx.args[1];
 		let targetUserId: string | null = null;
 
-		if (targetUser?.startsWith("<@") && targetUser.endsWith(">")) {
-			targetUser = targetUser.slice(2, -1);
-			if (targetUser.startsWith("!")) {
-				targetUser = targetUser.slice(1);
-			}
-			targetUser = await client.users.fetch(targetUser);
-			targetUserId = targetUser.id;
-		} else if (targetUser) {
+		if (typeof targetUser === "string" && targetUser.startsWith("<@") && targetUser.endsWith(">")) {
+			const userIdStr = targetUser.slice(2, -1).replace(/^!/, "");
+			const fetchedUser = await client.users.fetch(userIdStr);
+			targetUser = fetchedUser;
+			targetUserId = fetchedUser.id;
+		} else if (typeof targetUser === "string" && targetUser) {
 			try {
-				targetUser = await client.users.fetch(targetUser);
-				targetUserId = targetUser.id;
+				const fetchedUser = await client.users.fetch(targetUser);
+				targetUser = fetchedUser;
+				targetUserId = fetchedUser.id;
 			} catch (_error) {
 				const users = client.users.cache.filter(
-					(user) => user.username.toLowerCase() === targetUser.toLowerCase(),
+					(user) => typeof targetUser === "string" && user.username.toLowerCase() === targetUser.toLowerCase(),
 				);
 
 				if (users.size > 0) {
-					targetUser = users.first();
-					targetUserId = targetUser.id;
+					const foundUser = users.first();
+					targetUser = foundUser;
+					targetUserId = foundUser?.id || null;
 				} else {
 					return await ctx.sendMessage({
 						embeds: [
@@ -86,7 +77,7 @@ export default class StealPlaylist extends Command {
 			}
 		}
 
-		if (!playlistName) {
+		if (!playlistName || typeof playlistName !== "string") {
 			return await ctx.sendMessage({
 				embeds: [
 					{
@@ -130,8 +121,19 @@ export default class StealPlaylist extends Command {
 				playlistName,
 			);
 
+			if (!ctx.author?.id) {
+				return await ctx.sendMessage({
+					embeds: [
+						{
+							description: "Unable to identify user.",
+							color: this.client.color.red,
+						},
+					],
+				});
+			}
+
 			const existingPlaylist = await client.db.getPlaylist(
-				ctx.author?.id!,
+				ctx.author.id,
 				playlistName,
 			);
 			if (existingPlaylist) {
@@ -147,18 +149,20 @@ export default class StealPlaylist extends Command {
 				});
 			}
 
-			await client.db.createPlaylistWithTracks(
-				ctx.author?.id!,
-				playlistName,
-				targetSongs,
-			);
+			if (targetSongs) {
+				await client.db.createPlaylistWithTracks(
+					ctx.author.id,
+					playlistName,
+					targetSongs,
+				);
+			}
 
 			return await ctx.sendMessage({
 				embeds: [
 					{
 						description: ctx.locale("cmd.steal.messages.playlist_stolen", {
 							playlist: playlistName,
-							user: targetUser.username,
+							user: targetUser && typeof targetUser === "object" && "username" in targetUser ? String(targetUser.username) : "Unknown",
 						}),
 						color: this.client.color.main,
 					},
@@ -190,7 +194,16 @@ export default class StealPlaylist extends Command {
 							value: "NoUser",
 						},
 					])
-					.catch(console.error);
+					.catch((err) => {
+						handleError(err, {
+							client: this.client,
+							commandName: "steal",
+							userId: interaction.user.id,
+							guildId: interaction.guildId || undefined,
+							channelId: interaction.channelId || undefined,
+							additionalContext: { operation: "autocomplete_no_user" },
+						});
+					});
 				return;
 			}
 
@@ -198,7 +211,16 @@ export default class StealPlaylist extends Command {
 			if (!user) {
 				await interaction
 					.respond([{ name: "User not found.", value: "NoUserFound" }])
-					.catch(console.error);
+					.catch((err) => {
+						handleError(err, {
+							client: this.client,
+							commandName: "steal",
+							userId: interaction.user.id,
+							guildId: interaction.guildId || undefined,
+							channelId: interaction.channelId || undefined,
+							additionalContext: { operation: "autocomplete_user_not_found", userOptionId },
+						});
+					});
 				return;
 			}
 
@@ -209,7 +231,16 @@ export default class StealPlaylist extends Command {
 					.respond([
 						{ name: "No playlists found for this user.", value: "NoPlaylists" },
 					])
-					.catch(console.error);
+					.catch((err) => {
+						handleError(err, {
+							client: this.client,
+							commandName: "steal",
+							userId: interaction.user.id,
+							guildId: interaction.guildId || undefined,
+							channelId: interaction.channelId || undefined,
+							additionalContext: { operation: "autocomplete_no_playlists", targetUserId: user.id },
+						});
+					});
 				return;
 			}
 
@@ -224,8 +255,25 @@ export default class StealPlaylist extends Command {
 						value: playlist.name,
 					})),
 				)
-				.catch(console.error);
+				.catch((err) => {
+					handleError(err, {
+						client: this.client,
+						commandName: "steal",
+						userId: interaction.user.id,
+						guildId: interaction.guildId || undefined,
+						channelId: interaction.channelId || undefined,
+						additionalContext: { operation: "autocomplete_respond", targetUserId: user.id },
+					});
+				});
 		} catch (error) {
+			handleError(error, {
+				client: this.client,
+				commandName: "steal",
+				userId: interaction.user.id,
+				guildId: interaction.guildId || undefined,
+				channelId: interaction.channelId || undefined,
+				additionalContext: { operation: "autocomplete_error" },
+			});
 			return await interaction
 				.respond([
 					{
@@ -233,7 +281,16 @@ export default class StealPlaylist extends Command {
 						value: "Error",
 					},
 				])
-				.catch(console.error);
+				.catch((err) => {
+					handleError(err, {
+						client: this.client,
+						commandName: "steal",
+						userId: interaction.user.id,
+						guildId: interaction.guildId || undefined,
+						channelId: interaction.channelId || undefined,
+						additionalContext: { operation: "autocomplete_error_respond" },
+					});
+				});
 		}
 	}
 }

@@ -2,6 +2,10 @@ import axios from "axios";
 import { LastfmUser } from "../database/models";
 import { env } from "../env";
 import crypto from "crypto";
+import Logger from "../structures/Logger";
+import { APIError } from "../utils/errors";
+
+const logger = new Logger();
 
 const LASTFM_API_URL = "http://ws.audioscrobbler.com/2.0";
 
@@ -64,15 +68,25 @@ export class LastfmOAuthService {
 				return response.data.session.key;
 			}
 
-			console.error("[Last.fm OAuth] No session key in response:", response.data);
-			throw new Error("Failed to get session key from Last.fm");
-		} catch (error) {
-			console.error("[Last.fm OAuth] Error getting session key:", error);
-			if (axios.isAxiosError(error) && error.response?.data) {
-				console.error("[Last.fm OAuth] Last.fm error:", error.response.data);
+				logger.error("[Last.fm OAuth] No session key in response:", response.data);
+				throw new APIError(
+					"Failed to get session key from Last.fm",
+					"Last.fm",
+					undefined,
+					true,
+				);
+			} catch (error) {
+				logger.error("[Last.fm OAuth] Error getting session key:", error);
+				if (axios.isAxiosError(error) && error.response?.data) {
+					logger.error("[Last.fm OAuth] Last.fm error:", error.response.data);
+				}
+				throw new APIError(
+					`Failed to get Last.fm session key: ${error instanceof Error ? error.message : String(error)}`,
+					"Last.fm",
+					axios.isAxiosError(error) ? error.response?.status : undefined,
+					true,
+				);
 			}
-			throw error;
-		}
 	}
 
 	/**
@@ -93,11 +107,21 @@ export class LastfmOAuthService {
 				return response.data.user;
 			}
 
-			console.error("[Last.fm OAuth] No user info in response:", response.data);
-			throw new Error("Failed to get user info from Last.fm");
+			logger.error("[Last.fm OAuth] No user info in response:", response.data);
+			throw new APIError(
+				"Failed to get user info from Last.fm",
+				"Last.fm",
+				undefined,
+				true,
+			);
 		} catch (error) {
-			console.error("[Last.fm OAuth] Error getting user info:", error);
-			throw error;
+			logger.error("[Last.fm OAuth] Error getting user info:", error);
+			throw new APIError(
+				`Failed to get Last.fm user info: ${error instanceof Error ? error.message : String(error)}`,
+				"Last.fm",
+				axios.isAxiosError(error) ? error.response?.status : undefined,
+				true,
+			);
 		}
 	}
 
@@ -117,9 +141,9 @@ export class LastfmOAuthService {
 				{ upsert: true, new: true }
 			);
 
-			console.log(`[Last.fm OAuth] User ${userId} linked to ${username}`);
+			logger.info(`[Last.fm OAuth] User ${userId} linked to ${username}`);
 		} catch (error) {
-			console.error("[Last.fm OAuth] Error saving user:", error);
+			logger.error("[Last.fm OAuth] Error saving user:", error);
 			throw error;
 		}
 	}
@@ -129,16 +153,21 @@ export class LastfmOAuthService {
 	 */
 	async completeOAuthFlow(token: string, userId: string): Promise<{ username: string; sessionKey: string }> {
 		try {
-			console.log("[Last.fm OAuth] Exchanging token for session key...");
+			logger.debug("[Last.fm OAuth] Exchanging token for session key...");
 
 			// Get session key from token
 			const sessionKey = await this.getSessionKey(token);
 
 			if (!sessionKey) {
-				throw new Error("Failed to obtain session key");
+				throw new APIError(
+					"Failed to obtain session key",
+					"Last.fm",
+					undefined,
+					false,
+				);
 			}
 
-			console.log("[Last.fm OAuth] Got session key, fetching user info...");
+			logger.debug("[Last.fm OAuth] Got session key, fetching user info...");
 
 			// Get user info
 			const userInfo = await this.getUserInfo(sessionKey);
@@ -150,7 +179,7 @@ export class LastfmOAuthService {
 
 			return { username, sessionKey };
 		} catch (error) {
-			console.error("[Last.fm OAuth] Error in OAuth flow:", error);
+			logger.error("[Last.fm OAuth] Error in OAuth flow:", error);
 			throw error;
 		}
 	}

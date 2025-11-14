@@ -2,6 +2,10 @@ import util from "node:util";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { fetch } from "undici";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class Eval extends Command {
 	constructor(client: Lavamusic) {
@@ -16,22 +20,8 @@ export default class Eval extends Command {
 			aliases: ["ev"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: true,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions([], true),
 			slashCommand: false,
 			options: [],
 		});
@@ -83,6 +73,8 @@ export default class Eval extends Command {
 				content: `\`\`\`js\n${evaled}\n\`\`\``,
 				components: [row],
 			});
+
+			if (!msg) return;
 
 			const filter = (i: any) =>
 				i.customId === "eval-delete" && i.user.id === ctx.author?.id;

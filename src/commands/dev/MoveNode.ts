@@ -1,5 +1,9 @@
 /** biome-ignore-all lint/style/useTemplate: explanation */
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	ACTIVE_NO_VOICE_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class MoveNode extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +18,8 @@ export default class MoveNode extends Command {
 			aliases: ["mn"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: false,
-				dj: false,
-				active: true,
-				djPerm: null,
-			},
-			permissions: {
-				dev: true,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: ACTIVE_NO_VOICE_CONFIG,
+			permissions: createCommandPermissions([], true),
 			slashCommand: true,
 			options: [
 				{

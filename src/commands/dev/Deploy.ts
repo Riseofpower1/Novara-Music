@@ -8,6 +8,10 @@ import {
 	type Message,
 } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class Deploy extends Command {
 	constructor(client: Lavamusic) {
@@ -22,22 +26,8 @@ export default class Deploy extends Command {
 			aliases: ["deploy-commands"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: true,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions([], true),
 			slashCommand: false,
 			options: [],
 		});
@@ -59,7 +49,7 @@ export default class Deploy extends Command {
 				.setStyle(ButtonStyle.Secondary),
 		);
 
-		let msg: Message | undefined;
+		let msg: Message | null = null;
 		try {
 			msg = await ctx.sendMessage({
 				content: "Where do you want to deploy the commands?",

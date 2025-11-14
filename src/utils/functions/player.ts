@@ -5,26 +5,32 @@ import type { Requester } from "../../types";
 /**
  * Transforms a requester into a standardized requester object.
  *
- * @param {any} requester The requester to transform. Can be a string, a user, or an object with
- *                        the keys `id`, `username`, and `avatarURL`.
- * @returns {Requester} The transformed requester object.
+ * @param requester The requester to transform. Can be a string, a user, or an object with
+ *                  the keys `id`, `username`, and `avatarURL`.
+ * @returns The transformed requester object.
  */
-export const requesterTransformer = (requester: any): Requester => {
+export const requesterTransformer = (requester: unknown): Requester => {
 	// if it's already the transformed requester
 	if (
 		typeof requester === "object" &&
+		requester !== null &&
 		"avatar" in requester &&
 		Object.keys(requester).length === 3
 	)
-		return requester as Requester;
-	// if it's still a string
-	if (typeof requester === "object" && "displayAvatarURL" in requester) {
-		// it's a user
+		return requester as unknown as Requester;
+	// if it's a Discord user object
+	if (typeof requester === "object" && requester !== null && "displayAvatarURL" in requester) {
+		const user = requester as { 
+			id: string; 
+			username: string; 
+			displayAvatarURL: (options: { extension: string }) => string; 
+			discriminator?: string;
+		};
 		return {
-			id: requester.id,
-			username: requester.username,
-			avatarURL: requester.displayAvatarURL({ extension: "png" }),
-			discriminator: requester.discriminator,
+			id: user.id,
+			username: user.username,
+			avatarURL: user.displayAvatarURL({ extension: "png" }),
+			discriminator: user.discriminator,
 		};
 	}
 	return { id: requester?.toString() || "unknown", username: "unknown" };

@@ -4,6 +4,7 @@ import type {
 	PermissionResolvable,
 } from "discord.js";
 import type Lavamusic from "./Lavamusic";
+import type { CooldownConfig } from "../utils/cooldownManager";
 
 interface CommandDescription {
 	content: string;
@@ -32,7 +33,7 @@ interface CommandOptions {
 	description?: Partial<CommandDescription>;
 	description_localizations?: Record<string, string>;
 	aliases?: string[];
-	cooldown?: number;
+	cooldown?: number | CooldownConfig; // Support both legacy number and new config
 	args?: boolean;
 	player?: Partial<CommandPlayer>;
 	permissions?: Partial<CommandPermissions>;
@@ -48,7 +49,7 @@ export default class Command {
 	public description: CommandDescription;
 	public description_localizations?: Record<string, string>;
 	public aliases: string[];
-	public cooldown: number;
+	public cooldown: number | CooldownConfig; // Support both legacy and new format
 	public args: boolean;
 	public player: CommandPlayer;
 	public permissions: CommandPermissions;
@@ -67,6 +68,7 @@ export default class Command {
 		};
 		this.description_localizations = options.description_localizations ?? {};
 		this.aliases = options.aliases ?? [];
+		// Support both legacy number format and new CooldownConfig
 		this.cooldown = options.cooldown ?? 3;
 		this.args = options.args ?? false;
 		this.player = {

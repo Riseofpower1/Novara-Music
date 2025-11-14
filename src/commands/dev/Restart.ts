@@ -1,6 +1,11 @@
 import { spawn } from "node:child_process";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
+import { handleError } from "../../utils/errors";
 
 export default class Restart extends Command {
 	constructor(client: Lavamusic) {
@@ -15,22 +20,8 @@ export default class Restart extends Command {
 			aliases: ["reboot"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: true,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions([], true),
 			slashCommand: false,
 			options: [],
 		});
@@ -54,6 +45,8 @@ export default class Restart extends Command {
 			embeds: [restartEmbed],
 			components: [row],
 		});
+
+		if (!msg) return;
 
 		const filter = (i: any) =>
 			i.customId === "confirm-restart" && i.user.id === ctx.author?.id;
@@ -83,7 +76,14 @@ export default class Restart extends Command {
 				child.unref();
 				process.exit(0);
 			} catch (error) {
-				console.error("[RESTART ERROR]:", error);
+				handleError(error, {
+					client: this.client,
+					commandName: "restart",
+					userId: ctx.author?.id,
+					guildId: ctx.guild?.id,
+					channelId: ctx.channel?.id,
+					additionalContext: { operation: "restart_bot" },
+				});
 				await msg.edit({
 					content: "An error occurred while restarting the bot.",
 					components: [],

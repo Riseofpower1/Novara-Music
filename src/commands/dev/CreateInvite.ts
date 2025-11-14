@@ -1,6 +1,10 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: explanation */
 import { ChannelType, PermissionFlagsBits, type TextChannel } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissionsWithExtra,
+} from "../../utils/commandHelpers";
 
 export default class CreateInvite extends Command {
 	constructor(client: Lavamusic) {
@@ -15,23 +19,12 @@ export default class CreateInvite extends Command {
 			aliases: ["ci", "gi", "ginvite", "guildinvite"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: true,
-				client: [
-					"SendMessages",
-					"CreateInstantInvite",
-					"ReadMessageHistory",
-					"EmbedLinks",
-					"ViewChannel",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissionsWithExtra(
+				["CreateInstantInvite"],
+				[],
+				true,
+			),
 			slashCommand: false,
 			options: [],
 		});

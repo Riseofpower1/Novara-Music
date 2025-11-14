@@ -55,11 +55,24 @@ const playlistSchema = new mongoose.Schema(
 		userId: { type: String, required: true, index: true },
 		name: { type: String, required: true },
 		tracks: { type: [String], default: [] },
+		// Collaborative playlist features
+		isCollaborative: { type: Boolean, default: false },
+		collaborators: [{ userId: String, permission: { type: String, enum: ["read", "write"], default: "write" } }],
+		// Sharing features
+		isPublic: { type: Boolean, default: false },
+		sharedWith: [{ userId: String, permission: { type: String, enum: ["read", "write"], default: "read" } }],
+		// Statistics
+		playCount: { type: Number, default: 0 },
+		lastPlayedAt: { type: Date },
+		description: { type: String, maxlength: 500 },
 	},
 	{ timestamps: true }
 );
 
 playlistSchema.index({ userId: 1, name: 1 }, { unique: true });
+playlistSchema.index({ isPublic: 1 }); // For finding public playlists
+playlistSchema.index({ "collaborators.userId": 1 }); // For finding playlists user collaborates on
+playlistSchema.index({ "sharedWith.userId": 1 }); // For finding playlists shared with user
 
 // User Statistics Schema
 const userStatsSchema = new mongoose.Schema(
@@ -206,6 +219,37 @@ const activityLogSchema = new mongoose.Schema(
 );
 
 activityLogSchema.index({ guildId: 1, timestamp: -1 });
+activityLogSchema.index({ userId: 1, timestamp: -1 }); // For user activity queries
+activityLogSchema.index({ eventType: 1, timestamp: -1 }); // For event type queries
+
+// Achievement Schema - compound index for user/guild lookups
+achievementSchema.index({ userId: 1, guildId: 1 }, { unique: true });
+
+// Recommendation Schema - compound index
+recommendationSchema.index({ userId: 1, guildId: 1 });
+recommendationSchema.index({ guildId: 1, generatedAt: -1 }); // For recent recommendations
+
+// Role Schema - compound index for guild/role lookups
+roleSchema.index({ guildId: 1, roleId: 1 }, { unique: true });
+
+// Track Schema - indexes for analytics queries
+trackSchema.index({ timesPlayed: -1 }); // For popular tracks
+trackSchema.index({ artist: 1, timesPlayed: -1 }); // For artist popularity
+trackSchema.index({ genre: 1, timesPlayed: -1 }); // For genre popularity
+
+// UserStats Schema - indexes for leaderboards
+userStatsSchema.index({ totalTracksPlayed: -1 }); // For top listeners
+userStatsSchema.index({ totalTimeListened: -1 }); // For time-based leaderboards
+userStatsSchema.index({ lastListenedAt: -1 }); // For recent activity
+
+// GuildStats Schema - indexes for analytics
+guildStatsSchema.index({ totalTracksPlayed: -1 }); // For top guilds
+
+// SpotifyUser Schema - index for expired token queries
+spotifyUserSchema.index({ expiresAt: 1 }); // For finding expired tokens
+
+// LastfmUser Schema - index for scrobble enabled users
+lastfmUserSchema.index({ scrobbleEnabled: 1, userId: 1 }); // For finding scrobble-enabled users
 
 // Community Playlist Schema
 const communityPlaylistSchema = new mongoose.Schema(

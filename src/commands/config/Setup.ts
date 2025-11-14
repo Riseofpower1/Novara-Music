@@ -2,6 +2,10 @@
 import { ChannelType, OverwriteType, PermissionFlagsBits } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { getButtons } from "../../utils/Buttons";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissionsWithExtra,
+} from "../../utils/commandHelpers";
 
 export default class Setup extends Command {
 	constructor(client: Lavamusic) {
@@ -16,23 +20,11 @@ export default class Setup extends Command {
 			aliases: ["set"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-					"ManageChannels",
-				],
-				user: ["ManageGuild"],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissionsWithExtra(
+				["ManageChannels"],
+				["ManageGuild"],
+			),
 			slashCommand: true,
 			options: [
 				{
@@ -111,7 +103,7 @@ export default class Setup extends Command {
 				await textChannel
 					.send({
 						embeds: [embed],
-						components: getButtons(player as any, client),
+						components: player ? getButtons(player, client) : [],
 					})
 					.then((msg) => {
 						client.db.setSetup(ctx.guild.id, textChannel.id, msg.id);

@@ -1,5 +1,9 @@
 import type { AutocompleteInteraction, GuildMember } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	VOICE_PLAYER_CONFIG,
+	createMusicCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class LoadPlaylist extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +18,8 @@ export default class LoadPlaylist extends Command {
 			aliases: ["lo"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: true,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: VOICE_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{
@@ -65,11 +55,21 @@ export default class LoadPlaylist extends Command {
 			});
 		}
 
+		if (!ctx.author?.id) {
+			return await ctx.sendMessage({
+				embeds: [
+					{
+						description: "Unable to identify user.",
+						color: client.color.red,
+					},
+				],
+			});
+		}
 		const songs = await client.db.getTracksFromPlaylist(
-			ctx.author?.id!,
+			ctx.author.id,
 			playlistName,
 		);
-		if (songs.length === 0) {
+		if (!songs || songs.length === 0) {
 			return await ctx.sendMessage({
 				embeds: [
 					{
@@ -105,6 +105,8 @@ export default class LoadPlaylist extends Command {
 			});
 		}
 		const node = nodes[Math.floor(Math.random() * nodes.length)];
+		// Type assertion needed because Lavalink's multipleTracks accepts string[] but types are complex
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const tracks = await node.decode.multipleTracks(songs as any, ctx.author);
 		if (tracks.length === 0) {
 			return await ctx.sendMessage({
@@ -118,6 +120,11 @@ export default class LoadPlaylist extends Command {
 		}
 		player.queue.add(tracks);
 
+		// Increment playlist play count
+		if (ctx.author?.id) {
+			await client.db.incrementPlaylistPlayCount(ctx.author.id, playlistName);
+		}
+
 		if (!player.playing && player.queue.tracks.length > 0)
 			await player.play({ paused: false });
 
@@ -126,7 +133,7 @@ export default class LoadPlaylist extends Command {
 				{
 					description: ctx.locale("cmd.load.messages.playlist_loaded", {
 						name: playlistData.name,
-						count: songs.length,
+						count: songs?.length || 0,
 					}),
 					color: this.client.color.main,
 				},

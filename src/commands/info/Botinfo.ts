@@ -2,6 +2,10 @@ import os from "node:os";
 import { version } from "discord.js";
 import { showTotalMemory, usagePercent } from "node-system-stats";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class Botinfo extends Command {
 	constructor(client: Lavamusic) {
@@ -16,22 +20,8 @@ export default class Botinfo extends Command {
 			aliases: ["bi", "info", "stats", "status"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions(),
 			slashCommand: true,
 			options: [],
 		});

@@ -2,7 +2,7 @@ import {
 	ActionRowBuilder,
 	ButtonBuilder,
 	ButtonStyle,
-	type EmojiIdentifierResolvable,
+	type ComponentEmojiResolvable,
 } from "discord.js";
 import type { Player } from "lavalink-client";
 import type { Lavamusic } from "../structures/index";
@@ -11,88 +11,70 @@ function getButtons(
 	player: Player,
 	client: Lavamusic,
 ): ActionRowBuilder<ButtonBuilder>[] {
-	const buttonData = [
-		{
-			customId: "PREV_BUT",
-			emoji: client.emoji.previous,
-			style: ButtonStyle.Secondary,
-			label: "Previous",
-		},
-		{
-			customId: "REWIND_BUT",
-			emoji: client.emoji.rewind,
-			style: ButtonStyle.Secondary,
-			label: "Rewind 10s",
-		},
-		{
-			customId: "PAUSE_BUT",
-			emoji: player?.paused ? client.emoji.resume : client.emoji.pause,
-			style: player?.paused ? ButtonStyle.Success : ButtonStyle.Primary,
-			label: player?.paused ? "Resume" : "Pause",
-		},
-		{
-			customId: "FORWARD_BUT",
-			emoji: client.emoji.forward,
-			style: ButtonStyle.Secondary,
-			label: "Forward 10s",
-		},
-		{
-			customId: "SKIP_BUT",
-			emoji: client.emoji.skip,
-			style: ButtonStyle.Primary,
-			label: "Skip",
-		},
-		{
-			customId: "LOW_VOL_BUT",
-			emoji: client.emoji.voldown,
-			style: ButtonStyle.Secondary,
-			label: "Volume -",
-		},
-		{
-			customId: "LOOP_BUT",
-			emoji: client.emoji.loop.none,
-			style: ButtonStyle.Secondary,
-			label: "Loop",
-		},
-		{
-			customId: "STOP_BUT",
-			emoji: client.emoji.stop,
-			style: ButtonStyle.Danger,
-			label: "Stop",
-		},
-		{
-			customId: "SHUFFLE_BUT",
-			emoji: client.emoji.shuffle,
-			style: ButtonStyle.Secondary,
-			label: "Shuffle",
-		},
-		{
-			customId: "HIGH_VOL_BUT",
-			emoji: client.emoji.volup,
-			style: ButtonStyle.Secondary,
-			label: "Volume +",
-		},
-	];
+	// Get loop emoji based on current repeat mode
+	const getLoopEmoji = (): string => {
+		if (!player) return client.emoji.loop.none;
+		if (player.repeatMode === "track") return client.emoji.loop.track;
+		if (player.repeatMode === "queue") return client.emoji.loop.none; // Use none emoji for queue
+		return client.emoji.loop.none;
+	};
 
-	return buttonData.reduce((rows, { customId, emoji, style, label }, index) => {
-		if (index % 5 === 0) rows.push(new ActionRowBuilder<ButtonBuilder>());
+	// Get autoplay state
+	const autoplay = player?.get<boolean>("autoplay") ?? false;
 
-		let emojiFormat: EmojiIdentifierResolvable;
+	// Helper function to format emoji
+	const formatEmoji = (emoji: string): ComponentEmojiResolvable => {
 		if (typeof emoji === "string" && emoji.startsWith("<:")) {
 			const match = emoji.match(/^<:\w+:(\d+)>$/);
-			emojiFormat = match ? match[1] : emoji;
-		} else {
-			emojiFormat = emoji;
+			return (match ? match[1] : emoji) as ComponentEmojiResolvable;
 		}
+		return emoji as ComponentEmojiResolvable;
+	};
 
-		const button = new ButtonBuilder()
-			.setCustomId(customId)
-			.setEmoji(emojiFormat)
-			.setStyle(style)
-			.setLabel(label);
-		rows[rows.length - 1].addComponents(button);
-		return rows;
-	}, [] as ActionRowBuilder<ButtonBuilder>[]);
+	const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+
+	// First row: 5 emoji-only buttons (Previous, Pause, Skip, Loop, Shuffle)
+	const firstRow = new ActionRowBuilder<ButtonBuilder>();
+	firstRow.addComponents(
+		new ButtonBuilder()
+			.setCustomId("PREV_BUT")
+			.setEmoji(formatEmoji(client.emoji.previous))
+			.setStyle(ButtonStyle.Secondary),
+		new ButtonBuilder()
+			.setCustomId("PAUSE_BUT")
+			.setEmoji(formatEmoji(player?.paused ? client.emoji.resume : client.emoji.pause))
+			.setStyle(player?.paused ? ButtonStyle.Success : ButtonStyle.Primary),
+		new ButtonBuilder()
+			.setCustomId("SKIP_BUT")
+			.setEmoji(formatEmoji(client.emoji.skip))
+			.setStyle(ButtonStyle.Primary),
+		new ButtonBuilder()
+			.setCustomId("LOOP_BUT")
+			.setEmoji(formatEmoji(getLoopEmoji()))
+			.setStyle(ButtonStyle.Secondary),
+		new ButtonBuilder()
+			.setCustomId("SHUFFLE_BUT")
+			.setEmoji(formatEmoji(client.emoji.shuffle))
+			.setStyle(ButtonStyle.Secondary),
+	);
+	rows.push(firstRow);
+
+	// Second row: Stop button (emoji-only) + Autoplay button (with text)
+	const secondRow = new ActionRowBuilder<ButtonBuilder>();
+	secondRow.addComponents(
+		new ButtonBuilder()
+			.setCustomId("STOP_BUT")
+			.setEmoji(formatEmoji(client.emoji.stop))
+			.setStyle(ButtonStyle.Danger),
+		new ButtonBuilder()
+			.setCustomId("AUTOPLAY_BUT")
+			.setEmoji(formatEmoji(autoplay ? "✅" : "❌"))
+			.setStyle(autoplay ? ButtonStyle.Success : ButtonStyle.Secondary)
+			.setLabel(autoplay ? "Autoplay: ON" : "Autoplay: OFF"),
+	);
+	rows.push(secondRow);
+
+	return rows;
 }
 
 export { getButtons };

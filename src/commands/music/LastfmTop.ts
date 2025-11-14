@@ -1,6 +1,11 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { LastfmService } from "../../integrations/lastfm";
 import { env } from "../../env";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
+import { handleError } from "../../utils/errors";
 
 export default class LastfmTop extends Command {
 	constructor(client: Lavamusic) {
@@ -15,22 +20,8 @@ export default class LastfmTop extends Command {
 			aliases: ["lftop"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{
@@ -134,7 +125,14 @@ export default class LastfmTop extends Command {
 
 			return await ctx.sendMessage({ embeds: [embed] });
 		} catch (error) {
-			console.error("Error fetching Last.fm top tracks:", error);
+			handleError(error, {
+				client: this.client,
+				commandName: "lastfmtop",
+				userId: ctx.author?.id,
+				guildId: ctx.guild?.id,
+				channelId: ctx.channel?.id,
+				additionalContext: { operation: "fetch_lastfm_top_tracks" },
+			});
 			return await ctx.sendMessage({
 				embeds: [
 					this.client

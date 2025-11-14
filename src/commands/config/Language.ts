@@ -2,6 +2,11 @@ import type { AutocompleteInteraction } from "discord.js";
 import { env } from "../../env";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { Language, LocaleFlags } from "../../types";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
+import { handleError } from "../../utils/errors";
 
 export default class LanguageCommand extends Command {
 	constructor(client: Lavamusic) {
@@ -16,22 +21,8 @@ export default class LanguageCommand extends Command {
 			aliases: ["lang"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: ["ManageGuild"],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions(["ManageGuild"]),
 			slashCommand: true,
 			options: [
 				{
@@ -167,7 +158,16 @@ export default class LanguageCommand extends Command {
 			language.name.toLowerCase().includes(focusedValue.toLowerCase()),
 		);
 
-		await interaction.respond(filtered.slice(0, 25)).catch(console.error);
+		await interaction.respond(filtered.slice(0, 25)).catch((err) => {
+			handleError(err, {
+				client: this.client,
+				commandName: "language",
+				userId: interaction.user.id,
+				guildId: interaction.guildId || undefined,
+				channelId: interaction.channelId || undefined,
+				additionalContext: { operation: "autocomplete_respond" },
+			});
+		});
 	}
 }
 

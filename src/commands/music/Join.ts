@@ -1,5 +1,9 @@
 import type { VoiceChannel } from "discord.js";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	VOICE_PLAYER_CONFIG,
+	createMusicCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class Join extends Command {
 	constructor(client: Lavamusic) {
@@ -14,24 +18,8 @@ export default class Join extends Command {
 			aliases: ["come", "j"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: true,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-					"Connect",
-					"Speak",
-				],
-				user: [],
-			},
+			player: VOICE_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissions(),
 			slashCommand: true,
 			options: [],
 		});

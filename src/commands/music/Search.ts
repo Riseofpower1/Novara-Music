@@ -11,6 +11,10 @@ import {
 } from "discord.js";
 import type { SearchResult, Track } from "lavalink-client";
 import { Command, type Context, type Lavamusic } from "../../structures/index";
+import {
+	VOICE_PLAYER_CONFIG,
+	createMusicCommandPermissionsWithExtra,
+} from "../../utils/commandHelpers";
 
 const TRACKS_PER_PAGE = 5;
 
@@ -27,23 +31,8 @@ export default class Search extends Command {
 			aliases: ["sc"],
 			cooldown: 3,
 			args: true,
-			player: {
-				voice: true,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-					"AttachFiles",
-				],
-				user: [],
-			},
+			player: VOICE_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissionsWithExtra(["AttachFiles"]),
 			slashCommand: true,
 			options: [
 				{
@@ -183,7 +172,7 @@ export default class Search extends Command {
 			try {
 				await player.connect();
 			} catch (error) {
-				console.error("Failed to connect to voice channel:", error);
+				this.client.logger?.error("Failed to connect to voice channel:", error);
 				await player.destroy(); // Clean up the player if connection fails
 				const connectErrorContainer = new ContainerBuilder()
 					.setAccentColor(this.client.color.red)
@@ -235,6 +224,8 @@ export default class Search extends Command {
 		);
 		// @ts-ignore
 		const sentMessage = await ctx.sendMessage(initialComponents);
+
+		if (!sentMessage) return;
 
 		const collector = sentMessage.createMessageComponentCollector({
 			filter: (f: any) => f.user.id === ctx.author?.id,
@@ -357,7 +348,7 @@ export default class Search extends Command {
 						}),
 					);
 				} catch (error) {
-					console.error("Failed to edit message on collector timeout:", error);
+					this.client.logger?.error("Failed to edit message on collector timeout:", error);
 					const fallbackTimeoutContainer = new ContainerBuilder()
 						.setAccentColor(this.client.color.red)
 						.addTextDisplayComponents((textDisplay) =>

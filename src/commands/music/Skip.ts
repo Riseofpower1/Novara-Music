@@ -1,5 +1,9 @@
 import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { AnalyticsService } from "../../database/analytics";
+import {
+	ACTIVE_DJ_PLAYER_CONFIG,
+	createMusicCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class Skip extends Command {
 	constructor(client: Lavamusic) {
@@ -14,22 +18,8 @@ export default class Skip extends Command {
 			aliases: ["sk"],
 			cooldown: 3,
 			args: false,
-			player: {
-				voice: true,
-				dj: true,
-				active: true,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: ACTIVE_DJ_PLAYER_CONFIG,
+			permissions: createMusicCommandPermissions(),
 			slashCommand: true,
 			options: [],
 		});
@@ -55,14 +45,16 @@ export default class Skip extends Command {
 		const currentTrack = player.queue.current?.info;
 		
 		// Log skip action for analytics
-		const analyticsService = new AnalyticsService();
-		await analyticsService.logActivity(ctx.guild.id, ctx.author.id, "track_skipped", {
+		if (ctx.author) {
+			const analyticsService = new AnalyticsService();
+			await analyticsService.logActivity(ctx.guild.id, ctx.author.id, "track_skipped", {
 			track: currentTrack?.title,
 			artist: currentTrack?.author,
 			timestamp: new Date().toISOString()
-		}).catch((err) => {
-			this.client.logger.error("Failed to log skip event:", err);
-		});
+			}).catch((err) => {
+				this.client.logger.error("Failed to log skip event:", err);
+			});
+		}
 		
 		player.skip(0, !autoplay);
 		if (ctx.isInteraction) {

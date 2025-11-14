@@ -2,6 +2,10 @@ import { Command, type Context, type Lavamusic } from "../../structures/index";
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { spotifyOAuth } from "../../oauth/spotify";
 import { lastfmOAuth } from "../../oauth/lastfm";
+import {
+	NO_PLAYER_CONFIG,
+	createCommandPermissions,
+} from "../../utils/commandHelpers";
 
 export default class Unlink extends Command {
 	constructor(client: Lavamusic) {
@@ -16,22 +20,8 @@ export default class Unlink extends Command {
 			aliases: ["disconnect"],
 			cooldown: 5,
 			args: true,
-			player: {
-				voice: false,
-				dj: false,
-				active: false,
-				djPerm: null,
-			},
-			permissions: {
-				dev: false,
-				client: [
-					"SendMessages",
-					"ReadMessageHistory",
-					"ViewChannel",
-					"EmbedLinks",
-				],
-				user: [],
-			},
+			player: NO_PLAYER_CONFIG,
+			permissions: createCommandPermissions(),
 			slashCommand: true,
 			options: [
 				{
